@@ -55,7 +55,8 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 - [ ] Settings window (Qt): hotkey, model size, language, backend, API key
 - [ ] First-run onboarding: permissions, mic check, model download progress
 - [ ] Logging + crash report to local file
-- [ ] Packaging: `pyinstaller` → `Murmur.app` (mac) and `Murmur.exe` (Windows)
+- [x] Packaging: `pyinstaller` → `Murmur.app` (mac) — see `build.sh`
+- [ ] Packaging: `pyinstaller` → `Murmur.exe` (Windows)
 - [ ] Code-signing notes (mac notarization optional for personal use)
 - [ ] GitHub Actions: build + release artifacts on tag
 - [ ] Polished README with screenshots

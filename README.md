@@ -10,7 +10,7 @@ Murmur is a personal voice-to-text dictation tool for macOS and Windows. Hold a 
 
 ## Status
 
-🚧 **v0.2** — push-to-talk hotkey + system tray. See [ROADMAP.md](ROADMAP.md).
+🚧 **v0.3-dev** — push-to-talk + tray + packaged macOS `.app`. See [ROADMAP.md](ROADMAP.md).
 
 ## Features (v1.0 target)
 
@@ -55,6 +55,26 @@ On first run macOS will prompt for two permissions — both are required:
 1. **Microphone** — needed to record audio
 2. **Input Monitoring** — needed for the global push-to-talk hotkey
    (System Settings → Privacy & Security → Input Monitoring → enable your terminal/Murmur)
+
+## Run as a real macOS app (no terminal)
+
+Once you've used `start.sh` once and confirmed it works, you can build a standalone `Murmur.app`:
+
+```bash
+./build.sh                      # produces dist/Murmur.app
+open dist/Murmur.app            # or drag into /Applications
+```
+
+The build:
+- Bundles Python + all dependencies, so the app runs without any system Python
+- Generates and embeds the Murmur icon (teal/violet microphone)
+- Sets `LSUIElement=true` so Murmur lives only in the menu bar — no Dock icon
+- Adds the macOS permission strings so the prompts are human-readable
+- Ad-hoc-codesigns the bundle so Gatekeeper allows it on your machine
+
+Drag `Murmur.app` into `/Applications` and add it to System Settings → General → **Login Items** to launch on boot.
+
+> **Windows:** packaging support is on the roadmap (v1.0). For now, run via `./start.sh` on Windows under WSL or Git Bash.
 
 ## Architecture
 

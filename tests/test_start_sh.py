@@ -44,11 +44,9 @@ def test_start_sh_recreates_venv_on_version_mismatch(tmp_path):
     fake_venv = tmp_path / ".venv" / "bin"
     fake_venv.mkdir(parents=True)
     fake_python = fake_venv / "python"
+    # Fake python that emits "3.9" when called with -c, mimicking a stale venv.
     fake_python.write_text(
         "#!/usr/bin/env bash\n"
-        'echo "$(echo \\"3.9\\")"\n'
-        # The real probe is: python -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")'
-        # We honor that by emitting "3.9" when called with -c.
         'if [[ "$1" == "-c" ]]; then echo "3.9"; fi\n'
     )
     fake_python.chmod(0o755)
@@ -65,7 +63,8 @@ elif [[ ! -x .venv/bin/python ]]; then
     rm -rf .venv
     need_create=1
 else
-    current_ver="$(.venv/bin/python -c 'import sys; print(f"{{sys.version_info[0]}}.{{sys.version_info[1]}}")' 2>/dev/null || echo unknown)"
+    probe='import sys; print(f"{{sys.version_info[0]}}.{{sys.version_info[1]}}")'
+    current_ver="$(.venv/bin/python -c "$probe" 2>/dev/null || echo unknown)"
     if [[ "$current_ver" != "$PINNED_PYTHON" ]]; then
         rm -rf .venv
         touch "{sentinel}"
@@ -110,7 +109,8 @@ elif [[ ! -x .venv/bin/python ]]; then
     rm -rf .venv
     need_create=1
 else
-    current_ver="$(.venv/bin/python -c 'import sys; print(f"{{sys.version_info[0]}}.{{sys.version_info[1]}}")' 2>/dev/null || echo unknown)"
+    probe='import sys; print(f"{{sys.version_info[0]}}.{{sys.version_info[1]}}")'
+    current_ver="$(.venv/bin/python -c "$probe" 2>/dev/null || echo unknown)"
     if [[ "$current_ver" != "$PINNED_PYTHON" ]]; then
         rm -rf .venv
         need_create=1

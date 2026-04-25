@@ -8,6 +8,10 @@ dist/
 venv/
 .env
 .DS_Store
+dist/
+build/
+*.spec
+assets/icon.icns
 *.wav
 *.log
 .pytest_cache/
