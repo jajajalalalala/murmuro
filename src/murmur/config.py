@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import os
-import tomllib
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import tomli_w
+import tomllib
 from platformdirs import user_config_dir
 
 APP_NAME = "Murmur"

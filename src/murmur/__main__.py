@@ -10,8 +10,9 @@ import argparse
 import sys
 import time
 
-from . import __version__, config as config_mod
-from .audio import Recorder, SAMPLE_RATE
+from . import __version__
+from . import config as config_mod
+from .audio import SAMPLE_RATE, Recorder
 from .inject import to_clipboard
 from .transcribe import build as build_transcriber
 
