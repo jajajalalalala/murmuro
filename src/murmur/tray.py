@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 from . import __version__
 from . import config as config_mod
 from .app import MurmurApp, State
+from .hud import RecordingHUD
 from .permissions import (
     InputMonitoringStatus,
     input_monitoring_status,
@@ -115,11 +116,17 @@ def run_tray(cfg: config_mod.Config) -> int:
     tray.setContextMenu(menu)
     tray.show()
 
+    hud = RecordingHUD()
+
     def on_state(s: State) -> None:
         color, label = STATE_ICONS.get(s, STATE_ICONS[State.IDLE])
         tray.setIcon(_dot_icon(color))
         tray.setToolTip(f"Murmur v{__version__} — {label}")
         state_action.setText(label)
+        if s is State.RECORDING:
+            hud.show_at_top_center()
+        else:
+            hud.hide()
 
     def on_result(text: str) -> None:
         preview = text if len(text) <= 60 else text[:57] + "..."

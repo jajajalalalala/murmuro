@@ -41,7 +41,7 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 
 - [ ] `inject.py` — copy → simulate `⌘V` / `Ctrl+V` via `pynput`
 - [ ] Preserve clipboard: save before, restore after
-- [ ] Recording HUD: tiny floating window with waveform/level meter
+- [x] Recording HUD: tiny floating window with timer (waveform later)
 - [ ] Cancel-by-Esc while recording
 
 **Done when:** I can replace my typing with dictation in any app (browser, IDE, Slack) without manual paste.
