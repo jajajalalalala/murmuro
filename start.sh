@@ -54,20 +54,40 @@ PINNED_PYTHON="$(cat .python-version 2>/dev/null || echo 3.11)"
 echo "[start.sh] target Python: $PINNED_PYTHON"
 uv python install "$PINNED_PYTHON" >/dev/null
 
-# 4. Create venv if missing.
+# 4. Create venv (and recreate it if it was made with the wrong Python version).
+#    Bug history: an earlier .venv created from system Python (e.g. 3.9.6) was
+#    silently reused by uv pip, then dependency resolution failed with
+#    "Python>=3.10" violations. Always verify the existing venv matches.
+need_create=0
 if [[ ! -d .venv ]]; then
+    need_create=1
+elif [[ ! -x .venv/bin/python ]]; then
+    echo "[start.sh] .venv exists but has no python binary — recreating"
+    rm -rf .venv
+    need_create=1
+else
+    current_ver="$(.venv/bin/python -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null || echo "unknown")"
+    if [[ "$current_ver" != "$PINNED_PYTHON" ]]; then
+        echo "[start.sh] existing .venv has Python $current_ver, pinned is $PINNED_PYTHON — recreating"
+        rm -rf .venv
+        need_create=1
+    fi
+fi
+
+if [[ $need_create -eq 1 ]]; then
     echo "[start.sh] creating .venv with Python $PINNED_PYTHON"
     uv venv --python "$PINNED_PYTHON"
 fi
 
-# 5. Install project + GUI extras (idempotent).
+# 5. Install project + GUI extras (idempotent). We pass --python explicitly so
+#    uv ignores any ambient VIRTUAL_ENV / system Python and installs into our venv.
 echo "[start.sh] installing project + GUI deps (this may take a few minutes the first time)..."
-uv pip install -e ".[gui]"
+uv pip install --python .venv/bin/python -e ".[gui]"
 
 # Optional: also install the openai extra if user has set OPENAI_API_KEY
 if [[ -n "${OPENAI_API_KEY:-}" ]]; then
     echo "[start.sh] OPENAI_API_KEY detected — installing [openai] extra"
-    uv pip install -e ".[openai]"
+    uv pip install --python .venv/bin/python -e ".[openai]"
 fi
 
 if [[ $SETUP_ONLY -eq 1 ]]; then
