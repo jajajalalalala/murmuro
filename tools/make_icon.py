@@ -79,7 +79,8 @@ def make_icon(size: int = 1024) -> Image.Image:
 
 
 def main(argv: list[str]) -> int:
-    out = Path(argv[1]) if len(argv) > 1 else Path(__file__).resolve().parents[1] / "assets" / "icon.png"
+    default_out = Path(__file__).resolve().parents[1] / "assets" / "icon.png"
+    out = Path(argv[1]) if len(argv) > 1 else default_out
     out.parent.mkdir(parents=True, exist_ok=True)
     img = make_icon()
     img.save(out, format="PNG")
