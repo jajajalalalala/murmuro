@@ -20,6 +20,7 @@ from .permissions import (
     open_input_monitoring_settings,
     request_input_monitoring,
 )
+from .settings_dialog import SettingsDialog
 
 
 def _dot_icon(color: str) -> QIcon:
@@ -111,6 +112,8 @@ def run_tray(cfg: config_mod.Config) -> int:
     menu.addAction(backend_label)
     menu.addSeparator()
 
+    settings_action = QAction("Settings…")
+    menu.addAction(settings_action)
     quit_action = QAction("Quit Murmur")
     menu.addAction(quit_action)
     tray.setContextMenu(menu)
@@ -158,6 +161,32 @@ def run_tray(cfg: config_mod.Config) -> int:
         murmur.stop()
         app.quit()
 
+    def open_settings() -> None:
+        dlg = SettingsDialog(murmur.cfg)
+        if dlg.exec() == dlg.DialogCode.Accepted:
+            new_cfg = dlg.updated_config()
+            try:
+                config_mod.save(new_cfg)
+            except Exception as e:  # noqa: BLE001
+                tray.showMessage(
+                    "Murmur — settings",
+                    f"Couldn't save config: {e}",
+                    QSystemTrayIcon.MessageIcon.Critical,
+                    4000,
+                )
+                return
+            murmur.reload_config(new_cfg)
+            backend_label.setText(
+                f"Backend: {new_cfg.backend}  ·  Hotkey: {new_cfg.hotkey}"
+            )
+            tray.showMessage(
+                "Murmur",
+                f"Settings saved. Hotkey: {new_cfg.hotkey}",
+                QSystemTrayIcon.MessageIcon.Information,
+                2500,
+            )
+
+    settings_action.triggered.connect(open_settings)
     quit_action.triggered.connect(quit_app)
 
     return app.exec()

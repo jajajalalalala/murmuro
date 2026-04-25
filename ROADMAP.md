@@ -52,7 +52,7 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 
 **Goal:** A version a friend could install and use.
 
-- [ ] Settings window (Qt): hotkey, model size, language, backend, API key
+- [x] Settings window (Qt): hotkey, model size, language, backend, API key
 - [ ] First-run onboarding: permissions, mic check, model download progress
 - [ ] Logging + crash report to local file
 - [x] Packaging: `pyinstaller` → `Murmur.app` (mac) — see `build.sh`

@@ -116,3 +116,16 @@ class MurmurApp:
         if self._hotkey is not None:
             self._hotkey.stop()
             self._hotkey = None
+
+    def reload_config(self, cfg: config_mod.Config) -> None:
+        """Apply a new Config: rebind the hotkey, drop the cached transcriber.
+
+        The transcriber re-builds lazily on the next push-to-talk, so a
+        backend/model change becomes visible without an app restart.
+        """
+        self.cfg = cfg
+        self._transcriber = None  # force rebuild on next press
+        if self._hotkey is not None:
+            self._hotkey.stop()
+            self._hotkey = None
+        self.start()
