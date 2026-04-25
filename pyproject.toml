@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "murmur"
+version = "0.1.0"
+description = "Press a key, speak, get text. A minimal local-first dictation tool."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Murmur" }]
+dependencies = [
+    "sounddevice>=0.4.6",
+    "numpy>=1.24",
+    "faster-whisper>=1.0",
+    "pyperclip>=1.8",
+    "platformdirs>=4.0",
+    "tomli-w>=1.0",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0"]
+gui = ["PySide6>=6.6", "pynput>=1.7"]
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[project.scripts]
+murmur = "murmur.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
