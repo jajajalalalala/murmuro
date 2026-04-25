@@ -51,10 +51,22 @@ Edit the `hotkey` field in the config file (printed by `murmur --show-config`) t
 
 ### macOS permissions
 
-On first run macOS will prompt for two permissions — both are required:
-1. **Microphone** — needed to record audio
-2. **Input Monitoring** — needed for the global push-to-talk hotkey
-   (System Settings → Privacy & Security → Input Monitoring → enable your terminal/Murmur)
+Murmur needs **two** permissions on macOS — both granted to whichever binary is running:
+
+1. **Microphone** — recording audio.
+2. **Input Monitoring** — observing the global hotkey. Without this you'll see
+   `This process is not trusted!` and the hotkey will silently do nothing.
+
+On first launch Murmur asks macOS to show the prompt. If you previously denied
+or never saw it, Murmur opens a dialog with an "Open System Settings" button
+that drops you into **System Settings → Privacy & Security → Input Monitoring**.
+
+> ⚠️  macOS only re-checks Input Monitoring at process start. After flipping
+> the toggle ON, **quit and relaunch Murmur** for it to take effect.
+
+**Which binary needs the permission?**
+- If you launched via `./start.sh`, it's `.venv/bin/python` (or your terminal app, depending on macOS version). The grant is fragile — it can break if the venv is recreated.
+- If you launched `dist/Murmur.app`, the grant attaches to the bundle and survives rebuilds. **This is the recommended path for daily use.**
 
 ## Run as a real macOS app (no terminal)
 

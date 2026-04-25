@@ -88,7 +88,21 @@ def main() -> int:
 
     if args.cli:
         return _cli_loop(cfg)
+    _warn_if_input_monitoring_denied()
     return _gui()
+
+
+def _warn_if_input_monitoring_denied() -> None:
+    """Warn loudly on macOS before the GUI starts, so the user sees it in stderr."""
+    from .permissions import InputMonitoringStatus, input_monitoring_status
+
+    if input_monitoring_status() == InputMonitoringStatus.DENIED:
+        print(
+            "\n[murmur] macOS Input Monitoring is DENIED for this binary.\n"
+            "         The hotkey will not work until you enable it in:\n"
+            "         System Settings → Privacy & Security → Input Monitoring\n",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":

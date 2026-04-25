@@ -8,11 +8,17 @@ import sys
 
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 from . import __version__
 from . import config as config_mod
 from .app import MurmurApp, State
+from .permissions import (
+    InputMonitoringStatus,
+    input_monitoring_status,
+    open_input_monitoring_settings,
+    request_input_monitoring,
+)
 
 
 def _dot_icon(color: str) -> QIcon:
@@ -42,6 +48,41 @@ class _StateBridge(QObject):
     error = Signal(str)
 
 
+def _ensure_input_monitoring(parent=None) -> bool:
+    """Block tray startup until the user grants Input Monitoring on macOS.
+
+    First call triggers the system prompt; if the user denied or hasn't acted
+    yet, show a dialog with steps and a button that jumps to System Settings.
+    Returns True if it's safe to continue, False if we should bail.
+    """
+    status = input_monitoring_status()
+    if status == InputMonitoringStatus.GRANTED:
+        return True
+    if status == InputMonitoringStatus.UNAVAILABLE:
+        # Older macOS without IOHIDCheckAccess — let pynput try anyway.
+        return True
+    # On UNKNOWN, ask once. macOS only shows the prompt the first time.
+    if status == InputMonitoringStatus.UNKNOWN and request_input_monitoring():
+        return True
+
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Warning)
+    box.setWindowTitle("Murmur needs Input Monitoring")
+    box.setText("Murmur can't see your hotkey yet.")
+    box.setInformativeText(
+        "macOS requires Input Monitoring permission for global push-to-talk.\n\n"
+        "1. Click 'Open System Settings' below\n"
+        "2. Toggle Murmur (or your terminal, if you ran ./start.sh) ON\n"
+        "3. Quit and relaunch Murmur — macOS only re-checks at startup."
+    )
+    open_btn = box.addButton("Open System Settings", QMessageBox.ButtonRole.ActionRole)
+    box.addButton("Quit", QMessageBox.ButtonRole.RejectRole)
+    box.exec()
+    if box.clickedButton() is open_btn:
+        open_input_monitoring_settings()
+    return False
+
+
 def run_tray(cfg: config_mod.Config) -> int:
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
@@ -49,6 +90,9 @@ def run_tray(cfg: config_mod.Config) -> int:
     if not QSystemTrayIcon.isSystemTrayAvailable():
         print("System tray not available on this platform.", file=sys.stderr)
         return 1
+
+    if not _ensure_input_monitoring():
+        return 2
 
     bridge = _StateBridge()
     tray = QSystemTrayIcon()
