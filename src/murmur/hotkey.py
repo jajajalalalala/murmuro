@@ -35,14 +35,40 @@ class PushToTalkHotkey:
         self._held_keys: set = set()
         self._is_active = False  # True while the chord is fully held
 
-    @staticmethod
-    def _parse_keys(spec: str) -> set:
+    # Friendly names → pynput Key attribute names. pynput uses `alt_r`, `cmd_l`,
+    # etc., but humans (and the README) say "right_alt" / "right_option".
+    KEY_ALIASES = {
+        "right_alt": "alt_r",
+        "left_alt": "alt_l",
+        "right_option": "alt_r",
+        "left_option": "alt_l",
+        "option": "alt",
+        "right_ctrl": "ctrl_r",
+        "left_ctrl": "ctrl_l",
+        "control": "ctrl",
+        "right_shift": "shift_r",
+        "left_shift": "shift_l",
+        "right_cmd": "cmd_r",
+        "left_cmd": "cmd_l",
+        "right_command": "cmd_r",
+        "left_command": "cmd_l",
+        "command": "cmd",
+        "meta": "cmd",
+        "right_meta": "cmd_r",
+        "left_meta": "cmd_l",
+        "return": "enter",
+        "escape": "esc",
+    }
+
+    @classmethod
+    def _parse_keys(cls, spec: str) -> set:
         """Parse a hotkey spec into a set of pynput Key/KeyCode objects."""
         out = set()
         for token in spec.split("+"):
             token = token.strip()
             if token.startswith("<") and token.endswith(">"):
                 name = token[1:-1].lower()
+                name = cls.KEY_ALIASES.get(name, name)
                 key = getattr(keyboard.Key, name, None)
                 if key is None:
                     raise ValueError(f"Unknown special key: {token}")
