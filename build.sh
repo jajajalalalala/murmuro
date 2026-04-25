@@ -52,6 +52,12 @@ if [[ $CLEAN -eq 1 ]]; then
 fi
 
 # 4. Run PyInstaller via the venv's pyinstaller.
+#
+# We point PyInstaller at tools/pyi_launcher.py rather than
+# src/murmur/__main__.py — otherwise PyInstaller treats __main__.py as a
+# top-level script and the package's relative imports blow up at runtime
+# with "attempted relative import with no known parent package". The
+# launcher does the right thing: import murmur.__main__:main and dispatch.
 echo "[build.sh] running PyInstaller..."
 .venv/bin/pyinstaller \
     --noconfirm \
@@ -59,17 +65,21 @@ echo "[build.sh] running PyInstaller..."
     --name "Murmur" \
     --icon "assets/icon.icns" \
     --osx-bundle-identifier "com.bonian.murmur" \
+    --paths "src" \
+    --collect-submodules "murmur" \
     --collect-submodules "faster_whisper" \
     --collect-data "faster_whisper" \
     --hidden-import "pynput.keyboard._darwin" \
     --hidden-import "pynput.mouse._darwin" \
-    src/murmur/__main__.py
+    tools/pyi_launcher.py
 
 APP="dist/Murmur.app"
 PLIST="$APP/Contents/Info.plist"
 
 if [[ ! -d "$APP" ]]; then
-    echo "[build.sh] expected $APP, not found" >&2
+    echo "[build.sh] expected $APP, not found — PyInstaller didn't produce a bundle." >&2
+    echo "[build.sh] dist/ contents:" >&2
+    ls -la dist/ >&2 || true
     exit 4
 fi
 

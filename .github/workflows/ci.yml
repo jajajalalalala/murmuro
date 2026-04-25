@@ -38,7 +38,7 @@ jobs:
           pip install -e ".[dev,gui]"
 
       - name: Lint
-        run: ruff check src tests
+        run: ruff check src tests tools
 
       - name: Test
         env:
