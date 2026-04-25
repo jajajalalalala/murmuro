@@ -14,7 +14,7 @@ from . import config as config_mod
 from ._logging import get_logger
 from .audio import SAMPLE_RATE, Recorder
 from .hotkey import PushToTalkHotkey
-from .inject import to_clipboard
+from .inject import paste_at_cursor, to_clipboard
 from .transcribe import build as build_transcriber
 
 _log = get_logger("app")
@@ -97,15 +97,24 @@ class MurmurApp:
         try:
             duration = pcm.size / SAMPLE_RATE
             if duration < 0.2:
+                _log.info("clip too short (%.2fs); skipping", duration)
                 self._set_state(State.IDLE)
                 return
             transcriber = self._ensure_transcriber()
+            _log.info("transcribing %.2fs of audio (backend=%s)", duration, self.cfg.backend)
             text = transcriber.transcribe(pcm, SAMPLE_RATE, language=self.cfg.language)
+            preview = text if len(text) <= 80 else text[:77] + "..."
+            _log.info("transcript: %r", preview)
             if text:
                 if self.cfg.auto_paste:
+                    paste_at_cursor(text)
+                else:
                     to_clipboard(text)
                 self._on_result(text)
+            else:
+                _log.info("transcriber returned empty text")
         except Exception as e:  # noqa: BLE001
+            _log.exception("transcription failed")
             self._on_error(e)
         finally:
             self._set_state(State.IDLE)

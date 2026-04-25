@@ -87,3 +87,48 @@ def open_input_monitoring_settings() -> None:
         ],
         check=False,
     )
+
+
+# --- Accessibility (needed to simulate ⌘V for auto-paste) ----------------
+
+class AccessibilityStatus(str, Enum):
+    GRANTED = "granted"
+    DENIED = "denied"  # AXIsProcessTrusted() = false (could be denied or never asked)
+    UNAVAILABLE = "unavailable"
+
+
+def accessibility_status() -> AccessibilityStatus:
+    """Best-effort check via ApplicationServices' AXIsProcessTrusted.
+
+    Note: macOS doesn't distinguish "never asked" from "denied" here — the call
+    just returns false in both cases. We surface that as DENIED.
+    """
+    if not IS_MAC:
+        return AccessibilityStatus.UNAVAILABLE
+    try:
+        import ctypes
+
+        ax = ctypes.CDLL(
+            "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+        )
+        ax.AXIsProcessTrusted.restype = ctypes.c_bool
+        ax.AXIsProcessTrusted.argtypes = []
+        return (
+            AccessibilityStatus.GRANTED
+            if ax.AXIsProcessTrusted()
+            else AccessibilityStatus.DENIED
+        )
+    except (OSError, AttributeError):
+        return AccessibilityStatus.UNAVAILABLE
+
+
+def open_accessibility_settings() -> None:
+    if not IS_MAC:
+        return
+    subprocess.run(
+        [
+            "open",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        ],
+        check=False,
+    )

@@ -105,15 +105,30 @@ def main() -> int:
 
 def _warn_if_input_monitoring_denied() -> None:
     """Warn loudly on macOS before the GUI starts, so the user sees it in stderr."""
-    from .permissions import InputMonitoringStatus, input_monitoring_status
+    from .permissions import (
+        AccessibilityStatus,
+        InputMonitoringStatus,
+        accessibility_status,
+        input_monitoring_status,
+    )
 
+    log = get_logger("main")
     status = input_monitoring_status()
-    get_logger("main").info("Input Monitoring status: %s", status.value)
+    log.info("Input Monitoring status: %s", status.value)
+    ax = accessibility_status()
+    log.info("Accessibility status: %s (needed for auto-paste)", ax.value)
     if status == InputMonitoringStatus.DENIED:
         print(
             "\n[murmur] macOS Input Monitoring is DENIED for this binary.\n"
             "         The hotkey will not work until you enable it in:\n"
             "         System Settings → Privacy & Security → Input Monitoring\n",
+            file=sys.stderr,
+        )
+    if ax == AccessibilityStatus.DENIED:
+        print(
+            "\n[murmur] macOS Accessibility is not granted for this binary.\n"
+            "         Auto-paste at cursor (⌘V) will fall back to clipboard-only.\n"
+            "         Enable in: System Settings → Privacy & Security → Accessibility\n",
             file=sys.stderr,
         )
 

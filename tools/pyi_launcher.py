@@ -9,9 +9,18 @@ Bonus: when launched as a `.app` from Finder, stdout/stderr point at /dev/null
 or the system log with no easy way to see them. We re-bind them to a file in
 ~/Library/Logs/Murmur/ so anything that bypasses our logger (Qt warnings,
 pynput's own prints, third-party native tracebacks) is still captured.
+
+Critical: faster-whisper / ctranslate2 spawn multiprocessing workers, and on
+PyInstaller bundles each worker re-invokes the bundle's main executable with
+arguments like `-B -S -I -c "from multiprocessing.resource_tracker import
+main;main(N)"`. Without `freeze_support()`, those args fall through to our
+argparse and the worker dies with `unrecognized arguments`, which silently
+breaks transcription. Calling `freeze_support()` first makes worker invocations
+do their multiprocessing job and exit before we ever reach argparse.
 """
 from __future__ import annotations
 
+import multiprocessing
 import os
 import sys
 from pathlib import Path
@@ -32,6 +41,12 @@ def _redirect_streams_when_bundled() -> None:
     sys.stderr = f
     os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
+
+# MUST run before any import that touches multiprocessing (faster_whisper,
+# ctranslate2, torch, etc.) or argparse. In a frozen worker subprocess this
+# call services the multiprocessing handshake and `sys.exit`s; in the parent
+# it returns immediately.
+multiprocessing.freeze_support()
 
 _redirect_streams_when_bundled()
 

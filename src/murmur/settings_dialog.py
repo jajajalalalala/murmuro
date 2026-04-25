@@ -83,7 +83,9 @@ class SettingsDialog(QDialog):
         self.api_key_env = QLineEdit(cfg.openai.api_key_env)
         form.addRow("OpenAI API key env var:", self.api_key_env)
 
-        self.auto_paste = QCheckBox("Copy transcribed text to clipboard")
+        self.auto_paste = QCheckBox(
+            "Auto-paste at cursor (uncheck = clipboard only)"
+        )
         self.auto_paste.setChecked(cfg.auto_paste)
         form.addRow("", self.auto_paste)
 
