@@ -5,12 +5,13 @@ State machine:
 """
 from __future__ import annotations
 
+import contextlib
 import threading
 from collections.abc import Callable
 from enum import Enum
 
 from . import config as config_mod
-from .audio import Recorder, SAMPLE_RATE
+from .audio import SAMPLE_RATE, Recorder
 from .hotkey import PushToTalkHotkey
 from .inject import to_clipboard
 from .transcribe import build as build_transcriber
@@ -48,10 +49,9 @@ class MurmurApp:
 
     def _set_state(self, s: State) -> None:
         self._state = s
-        try:
+        # Subscribers are best-effort; never let a UI bug crash the audio path.
+        with contextlib.suppress(Exception):
             self._on_state_change(s)
-        except Exception:  # noqa: BLE001
-            pass
 
     def _ensure_transcriber(self):
         if self._transcriber is None:

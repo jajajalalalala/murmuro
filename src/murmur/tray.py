@@ -10,7 +10,8 @@ from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from . import __version__, config as config_mod
+from . import __version__
+from . import config as config_mod
 from .app import MurmurApp, State
 
 
@@ -78,7 +79,12 @@ def run_tray(cfg: config_mod.Config) -> int:
 
     def on_result(text: str) -> None:
         preview = text if len(text) <= 60 else text[:57] + "..."
-        tray.showMessage("Murmur", f"Copied: {preview}", QSystemTrayIcon.MessageIcon.Information, 2500)
+        tray.showMessage(
+            "Murmur",
+            f"Copied: {preview}",
+            QSystemTrayIcon.MessageIcon.Information,
+            2500,
+        )
 
     def on_error_msg(msg: str) -> None:
         tray.showMessage("Murmur error", msg, QSystemTrayIcon.MessageIcon.Critical, 4000)

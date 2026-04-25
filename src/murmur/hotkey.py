@@ -6,6 +6,7 @@ The hotkey is *held* — `on_press` fires once when the key goes down,
 """
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 
 from pynput import keyboard
@@ -65,10 +66,8 @@ class PushToTalkHotkey:
             self._held_keys.add(key)
             if not self._is_active and self._held_keys >= self._target_keys:
                 self._is_active = True
-                try:
+                with contextlib.suppress(Exception):
                     self._on_press()
-                except Exception:  # noqa: BLE001
-                    pass
 
     def _on_key_release(self, key) -> None:
         key = self._normalize(key)
@@ -76,10 +75,8 @@ class PushToTalkHotkey:
             self._held_keys.discard(key)
             if self._is_active and not (self._held_keys >= self._target_keys):
                 self._is_active = False
-                try:
+                with contextlib.suppress(Exception):
                     self._on_release()
-                except Exception:  # noqa: BLE001
-                    pass
 
     def start(self) -> None:
         if self._listener is not None:

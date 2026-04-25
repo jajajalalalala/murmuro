@@ -5,7 +5,12 @@ import numpy as np
 
 
 class LocalWhisper:
-    def __init__(self, model: str = "base", device: str = "auto", compute_type: str = "int8") -> None:
+    def __init__(
+        self,
+        model: str = "base",
+        device: str = "auto",
+        compute_type: str = "int8",
+    ) -> None:
         self.model_name = model
         self.device = device
         self.compute_type = compute_type
