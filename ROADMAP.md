@@ -35,16 +35,44 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 
 ---
 
-## v0.3 — "Paste at cursor"
+## v0.3 — "Paste at cursor" ✅
 
 **Goal:** No more `⌘V`. Text appears where I'm typing.
 
-- [ ] `inject.py` — copy → simulate `⌘V` / `Ctrl+V` via `pynput`
-- [ ] Preserve clipboard: save before, restore after
-- [x] Recording HUD: tiny floating window with timer (waveform later)
-- [ ] Cancel-by-Esc while recording
+- [x] `inject.py` — copy → CGEventPost `⌘V` (macOS) via ctypes; `pynput` on Windows
+- [x] CGEventPost reliability fixes: `kCGKeyboardEventAutorepeat=0`, flagsChanged-clear before each chord, paste routed through the host's UI thread
+- [x] Recording HUD: floating pill with timer; promoted to a non-activating status-level NSPanel so it never steals focus from the active text field
+- [x] Esc cancels the hotkey-recording session in Settings
 
-**Done when:** I can replace my typing with dictation in any app (browser, IDE, Slack) without manual paste.
+**Done when:** I can replace my typing with dictation in any app (browser, IDE, Slack) without manual paste — done.
+
+---
+
+## v0.4 — "Main window UI" ✅
+
+**Goal:** A real settings/home window, not a tiny modal.
+
+- [x] `main_window.py` — `QMainWindow` with left-rail nav + `QStackedWidget`
+- [x] `pages/home.py` — state pill, last 5 transcripts (click to recopy), auto-paste / show-HUD toggles, language picker
+- [x] `pages/shortcuts.py` — push-to-talk row using the click-to-record widget
+- [x] `pages/models.py` — provider dropdown swaps between Local model list (Download / Use buttons, faster-whisper cache check) and Cloud panel (API key env var + model)
+- [x] `providers.py` — `LocalModel` and `CloudProvider` dataclasses + registry
+- [x] Tray left-click opens the window; "Settings…" menu item replaced with **Open Murmur…**
+
+**Done when:** I can configure everything from a window that looks like an app, not a dialog.
+
+---
+
+## v0.5 — "More providers"
+
+**Goal:** Use whichever cloud transcription provider has the cheapest / best free tier today.
+
+- [ ] `transcribe/openai_compatible.py` — single transcriber covering OpenAI / Groq / DeepSeek / Kimi / custom
+- [ ] Add Groq, Kimi, DeepSeek rows to `CLOUD_PROVIDERS`
+- [ ] Per-provider rate hint shown on the Models page
+- [ ] "Test connection" button that pings the chosen endpoint with a 1-second silence clip
+
+**Done when:** I can paste a Groq key and have free-tier transcription end-to-end without code changes.
 
 ---
 
@@ -52,9 +80,8 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 
 **Goal:** A version a friend could install and use.
 
-- [x] Settings window (Qt): hotkey, model size, language, backend, API key
 - [ ] First-run onboarding: permissions, mic check, model download progress
-- [ ] Logging + crash report to local file
+- [x] Logging to local file (`~/Library/Logs/Murmur/murmur.log` on macOS)
 - [x] Packaging: `pyinstaller` → `Murmur.app` (mac) — see `build.sh`
 - [ ] Packaging: `pyinstaller` → `Murmur.exe` (Windows)
 - [ ] Code-signing notes (mac notarization optional for personal use)
@@ -69,6 +96,10 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 
 Each item must justify itself by being missed in daily use. Don't pre-build.
 
+- Subscription / OAuth-credit auth path (e.g. "Sign in with ChatGPT" once OpenAI extends the Codex pattern to audio endpoints)
+- Hands-free toggle hotkey (tap to start / tap to stop, alongside push-to-talk)
+- Persist the recent-transcripts list across restarts
+- Per-provider "Test connection" button on the Models page
 - Local model warm-up at app start (latency)
 - Custom vocabulary / replacements (e.g. "claude" → "Claude")
 - Transcript history viewer

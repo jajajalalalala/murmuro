@@ -24,14 +24,22 @@
 |---|---|---|
 | `audio.py` | Capture mic → 16 kHz mono PCM buffer | `sounddevice`, `numpy` |
 | `hotkey.py` | OS-level push-to-talk listener | `pynput` |
+| `hotkey_recorder.py` | Click-to-record QWidget capturing hotkey by pressing it | `PySide6` |
 | `transcribe/base.py` | `Transcriber` Protocol | — |
 | `transcribe/local.py` | `faster-whisper` backend, lazy load | `faster-whisper` |
 | `transcribe/openai_api.py` | OpenAI Whisper API backend | `openai` |
-| `inject.py` | Copy + paste simulation; clipboard preserve | `pyperclip`, `pynput` |
-| `tray.py` | Menu bar / tray icon, state UI | `PySide6` (QSystemTrayIcon) |
-| `ui/settings.py` | Settings window | `PySide6` |
+| `transcribe/factory.py` | Build a `Transcriber` from a `Config` | — |
+| `inject.py` | Copy + CGEventPost ⌘V (mac) / `pynput` paste (win) | `pyperclip`, `pynput`, `ctypes` |
+| `hud.py` | Floating recording pill; non-activating NSPanel via pyobjc | `PySide6`, `pyobjc-framework-Cocoa` |
+| `tray.py` | Menu bar tray icon, state UI, opens main window | `PySide6` (QSystemTrayIcon) |
+| `main_window.py` | `QMainWindow` shell: left rail + stacked pages | `PySide6` |
+| `pages/home.py` | Status, recent transcripts, auto-paste / HUD / language | `PySide6` |
+| `pages/shortcuts.py` | Push-to-talk hotkey row | `PySide6` |
+| `pages/models.py` | Provider dropdown + Local model list + Cloud auth panel | `PySide6` |
+| `providers.py` | `LocalModel` + `CloudProvider` registry | — |
+| `permissions.py` | macOS TCC checks + System Settings deep-links | `pyobjc-framework-ApplicationServices` |
 | `config.py` | TOML config in `platformdirs.user_config_dir` | `platformdirs`, `tomli-w` |
-| `app.py` | Wires everything; state machine | — |
+| `app.py` | Wires everything; state machine; paste-routing callback | — |
 | `__main__.py` | Entrypoint: GUI or `--cli` mode | — |
 
 ## State machine

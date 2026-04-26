@@ -10,16 +10,16 @@ Murmur is a personal voice-to-text dictation tool for macOS and Windows. Hold a 
 
 ## Status
 
-🚧 **v0.3-dev** — push-to-talk + tray + packaged macOS `.app`. See [ROADMAP.md](ROADMAP.md).
+🚧 **v0.4-dev** — push-to-talk, packaged macOS `.app`, reliable auto-paste, main window with Home / Shortcuts / Models pages. See [ROADMAP.md](ROADMAP.md).
 
-## Features (v1.0 target)
+## Features
 
-- 🎙️  Push-to-talk global hotkey (default `fn` on macOS, `right alt` on Windows)
-- 🧠 Local Whisper transcription (no internet required)
-- 🔌 Pluggable backend: switch to OpenAI API with one click
-- 📋 Auto-paste at cursor, fallback to clipboard
-- 🪶 Menu bar / system tray app — no Dock icon
-- ⚙️  Settings UI for hotkey, model size, language, backend
+- 🎙️  Push-to-talk global hotkey, configured by **clicking Record and pressing the key** (default `Right Option` on macOS, `Right Alt` on Windows)
+- 🧠 Local Whisper transcription via faster-whisper (no internet required); pick from `tiny` → `large-v3` and `distil-large-v3` with one-click downloads
+- 🔌 Pluggable backend: switch to OpenAI Whisper API by entering an env-var name; the registry is structured so Groq / Kimi / DeepSeek slot in next
+- 📋 Reliable auto-paste at cursor on macOS (works around CGEventPost autorepeat quirks and HUD focus stealing), with clipboard-only fallback
+- 🪶 Menu bar / system tray app — no Dock icon, no focus-stealing HUD
+- 🪟 Main window with three pages: **Home** (state + last 5 transcripts + global toggles), **Shortcuts**, **Models**
 
 ## Non-goals
 
@@ -47,7 +47,18 @@ The first run downloads a Whisper model (~150 MB for `base`).
 - macOS: `right Option (⌥)` — hold to record, release to transcribe
 - Windows: `right Alt`
 
-Edit the `hotkey` field in the config file (printed by `murmur --show-config`) to change it. Format follows [pynput hotkey syntax](https://pynput.readthedocs.io/en/latest/keyboard.html#monitoring-the-keyboard) — e.g. `<f9>`, `<ctrl>+<shift>+<space>`.
+Change it from the menu bar: click the Murmur tray icon → **Open Murmur…** → **Shortcuts** → click **Record** → press the key (or combo) you want. Modifier-only hotkeys commit on release; combos with a non-modifier (e.g. `⌃⇧Space`) commit on the non-modifier press. Esc cancels.
+
+Power users can still hand-edit the `hotkey` field in the config file (printed by `murmur --show-config`) using [pynput hotkey syntax](https://pynput.readthedocs.io/en/latest/keyboard.html#monitoring-the-keyboard) — e.g. `<f9>`, `<ctrl>+<shift>+<space>`.
+
+### Picking a model
+
+Open the main window → **Models** page:
+
+- **Local (on-device)** — list of faster-whisper models with size + a Download or Use button. Click Download to fetch the model into the HuggingFace cache; flip to it with **Use**. The first transcription after picking a fresh model has a small load-into-memory delay; subsequent ones are instant.
+- **OpenAI Whisper** — enter the env var name that holds your API key (default `OPENAI_API_KEY`). The page tells you whether the var is currently set in your shell. The status line under the field tells you whether the var is currently set in this session.
+
+The Models page is wired through a small provider registry, so the next provider (Groq, Kimi, DeepSeek, custom OpenAI-compatible endpoint) is a one-file extension — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### macOS permissions
 
@@ -97,10 +108,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module layout and data flow
 See [ROADMAP.md](ROADMAP.md). TL;DR:
 
 - **v0.1** ✅ CLI: record → transcribe → clipboard
-- **v0.2** Global hotkey + tray icon
-- **v0.3** Auto-paste at cursor + recording HUD
-- **v1.0** Settings UI + packaged `.app` / `.exe` + GitHub release
-- **v1.1+** Custom vocabulary, history, AI rewrite (opt-in)
+- **v0.2** ✅ Global hotkey + tray icon
+- **v0.3** ✅ Auto-paste at cursor + recording HUD (focus-safe NSPanel)
+- **v0.4** ✅ Main window UI: Home / Shortcuts / Models, click-to-record hotkey, local model downloads
+- **v0.5** Provider expansion: Groq / Kimi / DeepSeek via OpenAI-compatible registry
+- **v1.0** First-run onboarding + Windows packaging + GitHub release
+- **v1.1+** Hands-free toggle, custom vocabulary, transcript history, AI rewrite (opt-in)
 
 ## License
 

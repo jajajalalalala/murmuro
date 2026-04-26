@@ -15,7 +15,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
-
 # macOS virtual keycode → friendly name (matches pynput's KEY_ALIASES side).
 # We only enumerate the keys most reach for as push-to-talk hotkeys.
 _MAC_VK_NAMES: dict[int, str] = {

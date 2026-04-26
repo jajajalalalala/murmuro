@@ -1,0 +1,194 @@
+"""Home page: at-a-glance state, recent transcripts, global preferences.
+
+The page is a passive view: it owns no transcription state of its own.
+The main window pushes state-change events into ``set_state()`` and
+appended transcripts into ``add_transcript()``. The toggles emit signals
+that the main window forwards to the Config save path.
+"""
+from __future__ import annotations
+
+import pyperclip
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from .. import config as config_mod
+from ..app import State
+
+_STATE_LABELS = {
+    State.IDLE: ("Idle", "#9aa0a6"),
+    State.RECORDING: ("Recording", "#e53935"),
+    State.TRANSCRIBING: ("Transcribing", "#fbc02d"),
+}
+
+# Curated UI list — same set as the previous settings dialog so users keep
+# the dropdown they're used to. The TOML still accepts arbitrary codes.
+LANGUAGES = [
+    ("auto", "Auto-detect"),
+    ("en", "English"),
+    ("zh", "Chinese"),
+    ("es", "Spanish"),
+    ("fr", "French"),
+    ("de", "German"),
+    ("ja", "Japanese"),
+    ("ko", "Korean"),
+    ("pt", "Portuguese"),
+    ("ru", "Russian"),
+]
+
+
+class HomePage(QWidget):
+    """Status + recent transcripts + 'general' preferences."""
+
+    # Emitted whenever the user flips a toggle or picks a language; the
+    # main window persists the change.
+    preferences_changed = Signal()
+
+    MAX_TRANSCRIPTS = 5
+
+    def __init__(self, cfg: config_mod.Config, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._cfg = cfg
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        # --- Status row ------------------------------------------------
+        self._state_dot = QLabel()
+        self._state_dot.setFixedSize(14, 14)
+        self._state_text = QLabel("Idle")
+        self._state_text.setStyleSheet("font-size: 18px; font-weight: 600;")
+        status_row = QHBoxLayout()
+        status_row.setSpacing(10)
+        status_row.addWidget(self._state_dot)
+        status_row.addWidget(self._state_text)
+        status_row.addStretch(1)
+        layout.addLayout(status_row)
+
+        self._summary = QLabel()
+        self._summary.setStyleSheet("color: palette(mid);")
+        layout.addWidget(self._summary)
+
+        # --- Recent transcripts ----------------------------------------
+        layout.addWidget(_section_label("Recent transcripts"))
+        self._list = QListWidget()
+        self._list.setAlternatingRowColors(True)
+        self._list.itemActivated.connect(self._on_transcript_activated)
+        layout.addWidget(self._list, 1)
+        copy_hint = QLabel("Double-click a row to copy it back to the clipboard.")
+        copy_hint.setStyleSheet("color: palette(mid); font-size: 11px;")
+        layout.addWidget(copy_hint)
+
+        # --- Preferences -----------------------------------------------
+        layout.addWidget(_separator())
+        prefs = QFormLayout()
+        prefs.setHorizontalSpacing(16)
+
+        self.auto_paste = QCheckBox("Auto-paste at cursor (uncheck = clipboard only)")
+        self.auto_paste.setChecked(cfg.auto_paste)
+        self.auto_paste.toggled.connect(lambda _: self.preferences_changed.emit())
+        prefs.addRow("", self.auto_paste)
+
+        self.show_hud = QCheckBox("Show recording HUD")
+        self.show_hud.setChecked(cfg.show_hud)
+        self.show_hud.toggled.connect(lambda _: self.preferences_changed.emit())
+        prefs.addRow("", self.show_hud)
+
+        self.language_combo = QComboBox()
+        for code, label in LANGUAGES:
+            self.language_combo.addItem(f"{label} ({code})", userData=code)
+        idx = next(
+            (i for i, (code, _) in enumerate(LANGUAGES) if code == cfg.language),
+            0,
+        )
+        self.language_combo.setCurrentIndex(idx)
+        self.language_combo.currentIndexChanged.connect(
+            lambda _: self.preferences_changed.emit()
+        )
+        prefs.addRow("Language:", self.language_combo)
+        layout.addLayout(prefs)
+
+        self.set_state(State.IDLE)
+        self._refresh_summary()
+
+    # ------------------------------------------------------------------
+    # Public hooks driven by the main window
+    # ------------------------------------------------------------------
+
+    def set_state(self, s: State) -> None:
+        label, color = _STATE_LABELS.get(s, _STATE_LABELS[State.IDLE])
+        self._state_text.setText(label)
+        self._state_dot.setStyleSheet(
+            f"background: {color}; border-radius: 7px;"
+        )
+
+    def set_config(self, cfg: config_mod.Config) -> None:
+        """Sync the displayed preferences with a fresh Config."""
+        self._cfg = cfg
+        # Block signals so we don't echo a synthetic preferences_changed.
+        for w in (self.auto_paste, self.show_hud, self.language_combo):
+            w.blockSignals(True)
+        self.auto_paste.setChecked(cfg.auto_paste)
+        self.show_hud.setChecked(cfg.show_hud)
+        idx = next(
+            (i for i, (code, _) in enumerate(LANGUAGES) if code == cfg.language),
+            0,
+        )
+        self.language_combo.setCurrentIndex(idx)
+        for w in (self.auto_paste, self.show_hud, self.language_combo):
+            w.blockSignals(False)
+        self._refresh_summary()
+
+    def add_transcript(self, text: str) -> None:
+        if not text:
+            return
+        preview = text if len(text) <= 120 else text[:117] + "…"
+        item = QListWidgetItem(preview)
+        item.setData(0x0100, text)  # Qt.UserRole
+        self._list.insertItem(0, item)
+        while self._list.count() > self.MAX_TRANSCRIPTS:
+            self._list.takeItem(self._list.count() - 1)
+
+    def apply_to_config(self, cfg: config_mod.Config) -> config_mod.Config:
+        """Return a copy of cfg with this page's preferences applied."""
+        cfg.auto_paste = self.auto_paste.isChecked()
+        cfg.show_hud = self.show_hud.isChecked()
+        cfg.language = self.language_combo.currentData() or "auto"
+        return cfg
+
+    # ------------------------------------------------------------------
+
+    def _on_transcript_activated(self, item: QListWidgetItem) -> None:
+        full_text = item.data(0x0100)
+        if full_text:
+            pyperclip.copy(full_text)
+
+    def _refresh_summary(self) -> None:
+        self._summary.setText(
+            f"Hotkey {self._cfg.hotkey}  ·  Backend {self._cfg.backend}  "
+            f"·  Model {self._cfg.local.model}"
+        )
+
+
+def _section_label(text: str) -> QLabel:
+    label = QLabel(text)
+    label.setStyleSheet("font-weight: 600; margin-top: 4px;")
+    return label
+
+
+def _separator() -> QFrame:
+    line = QFrame()
+    line.setFrameShape(QFrame.Shape.HLine)
+    line.setFrameShadow(QFrame.Shadow.Sunken)
+    return line

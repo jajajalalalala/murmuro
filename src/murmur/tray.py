@@ -15,6 +15,7 @@ from . import config as config_mod
 from ._logging import get_logger
 from .app import MurmurApp, State
 from .hud import RecordingHUD
+from .main_window import MainWindow
 from .permissions import (
     AccessibilityStatus,
     InputMonitoringStatus,
@@ -24,7 +25,6 @@ from .permissions import (
     open_input_monitoring_settings,
     request_input_monitoring,
 )
-from .settings_dialog import SettingsDialog
 
 _log = get_logger("tray")
 
@@ -167,13 +167,14 @@ def run_tray(cfg: config_mod.Config) -> int:
     menu.addAction(backend_label)
     menu.addSeparator()
 
-    settings_action = QAction("Settings…")
-    menu.addAction(settings_action)
+    open_window_action = QAction("Open Murmur…")
+    menu.addAction(open_window_action)
     quit_action = QAction("Quit Murmur")
     menu.addAction(quit_action)
     tray.setContextMenu(menu)
     tray.show()
 
+    main_window = MainWindow(cfg)
     hud = RecordingHUD() if cfg.show_hud else None
 
     def on_state(s: State) -> None:
@@ -182,6 +183,7 @@ def run_tray(cfg: config_mod.Config) -> int:
         tray.setIcon(_dot_icon(color))
         tray.setToolTip(f"Murmur v{__version__} — {label}")
         state_action.setText(label)
+        main_window.update_state(s)
         if hud is None:
             return
         if s is State.RECORDING:
@@ -197,6 +199,7 @@ def run_tray(cfg: config_mod.Config) -> int:
             QSystemTrayIcon.MessageIcon.Information,
             2500,
         )
+        main_window.append_transcript(text)
 
     def on_error_msg(msg: str) -> None:
         _log.error("error: %s", msg)
@@ -231,32 +234,29 @@ def run_tray(cfg: config_mod.Config) -> int:
         murmur.stop()
         app.quit()
 
-    def open_settings() -> None:
-        dlg = SettingsDialog(murmur.cfg)
-        if dlg.exec() == dlg.DialogCode.Accepted:
-            new_cfg = dlg.updated_config()
-            try:
-                config_mod.save(new_cfg)
-            except Exception as e:  # noqa: BLE001
-                tray.showMessage(
-                    "Murmur — settings",
-                    f"Couldn't save config: {e}",
-                    QSystemTrayIcon.MessageIcon.Critical,
-                    4000,
-                )
-                return
-            murmur.reload_config(new_cfg)
-            backend_label.setText(
-                f"Backend: {new_cfg.backend}  ·  Hotkey: {new_cfg.hotkey}"
-            )
-            tray.showMessage(
-                "Murmur",
-                f"Settings saved. Hotkey: {new_cfg.hotkey}",
-                QSystemTrayIcon.MessageIcon.Information,
-                2500,
-            )
+    def open_main_window() -> None:
+        main_window.show()
+        main_window.raise_()
+        main_window.activateWindow()
 
-    settings_action.triggered.connect(open_settings)
+    def on_config_saved(new_cfg: config_mod.Config) -> None:
+        murmur.reload_config(new_cfg)
+        backend_label.setText(
+            f"Backend: {new_cfg.backend}  ·  Hotkey: {new_cfg.hotkey}"
+        )
+
+    def on_tray_activated(reason: QSystemTrayIcon.ActivationReason) -> None:
+        # Left click / double click on the tray icon opens the window.
+        # Right click is reserved for the context menu (handled by Qt).
+        if reason in (
+            QSystemTrayIcon.ActivationReason.Trigger,
+            QSystemTrayIcon.ActivationReason.DoubleClick,
+        ):
+            open_main_window()
+
+    main_window.config_saved.connect(on_config_saved)
+    open_window_action.triggered.connect(open_main_window)
     quit_action.triggered.connect(quit_app)
+    tray.activated.connect(on_tray_activated)
 
     return app.exec()
