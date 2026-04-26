@@ -7,8 +7,10 @@ that the main window forwards to the Config save path.
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 import pyperclip
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -97,10 +99,21 @@ class HomePage(QWidget):
         layout.addWidget(section_label("Recent transcripts"))
         self._list = QListWidget()
         self._list.setAlternatingRowColors(True)
+        # Word-wrap long transcripts onto multiple lines so the user
+        # never has to scroll horizontally to read what they said.
+        self._list.setWordWrap(True)
+        self._list.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Cap the list height so it doesn't balloon into a giant empty
+        # block when there are no transcripts yet — when entries arrive
+        # the list grows up to this max and then scrolls vertically.
+        self._list.setMinimumHeight(120)
+        self._list.setMaximumHeight(280)
         self._list.itemActivated.connect(self._on_transcript_activated)
-        layout.addWidget(self._list, 1)
+        layout.addWidget(self._list)
         layout.addWidget(hint_label(
-            "Double-click a row to copy it back to the clipboard."
+            "Each entry is timestamped. Double-click a row to copy it back "
+            "to the clipboard."
         ))
 
         # --- Preferences -----------------------------------------------
@@ -166,12 +179,15 @@ class HomePage(QWidget):
             w.blockSignals(False)
         self._refresh_summary()
 
-    def add_transcript(self, text: str) -> None:
+    def add_transcript(self, text: str, when: datetime | None = None) -> None:
         if not text:
             return
-        preview = text if len(text) <= 120 else text[:117] + "…"
-        item = QListWidgetItem(preview)
-        item.setData(0x0100, text)  # Qt.UserRole
+        timestamp = (when or datetime.now()).strftime("%H:%M")
+        # Two-line entry: bold-ish timestamp on top, full text below.
+        # Word-wrap is enabled on the list so long transcripts span
+        # multiple lines instead of triggering a horizontal scrollbar.
+        item = QListWidgetItem(f"{timestamp}\n{text}")
+        item.setData(0x0100, text)  # Qt.UserRole — the raw text to copy
         self._list.insertItem(0, item)
         while self._list.count() > self.MAX_TRANSCRIPTS:
             self._list.takeItem(self._list.count() - 1)

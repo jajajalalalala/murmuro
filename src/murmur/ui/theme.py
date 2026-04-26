@@ -338,3 +338,23 @@ def mark_dim(widget: QWidget) -> QWidget:
     """Tag a widget so the global stylesheet renders it in the dim text color."""
     widget.setProperty("dim", True)
     return widget
+
+
+def scroll_wrap(content: QWidget):
+    """Wrap a page widget in a frameless vertical-only scroll area.
+
+    Pages can grow taller than a small window; without this, content
+    near the bottom (the model list, the language picker) gets clipped
+    because the central widget has no scroll. The horizontal bar is
+    suppressed so children sized via stretch fill the viewport instead
+    of triggering a side-scroll.
+    """
+    from PySide6.QtWidgets import QScrollArea
+
+    area = QScrollArea()
+    area.setFrameShape(QScrollArea.Shape.NoFrame)
+    area.setWidgetResizable(True)
+    area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    area.setWidget(content)
+    return area

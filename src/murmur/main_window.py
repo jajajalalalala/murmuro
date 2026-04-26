@@ -29,10 +29,12 @@ from PySide6.QtWidgets import (
 from . import config as config_mod
 from ._logging import get_logger
 from .app import State
+from .pages.about import AboutPage
 from .pages.home import HomePage
 from .pages.models import ModelsPage
 from .pages.shortcuts import ShortcutsPage
 from .restart import confirm_restart, restart_reasons
+from .ui.theme import scroll_wrap
 
 _log = get_logger("main_window")
 
@@ -68,17 +70,24 @@ class MainWindow(QMainWindow):
         self._nav = QListWidget()
         self._nav.setObjectName("nav")
         self._nav.setFixedWidth(170)
-        for label in ("Home", "Shortcuts", "Models"):
+        for label in ("Home", "Shortcuts", "Models", "About"):
             self._nav.addItem(QListWidgetItem(label))
         root.addWidget(self._nav)
 
         # --- Pages ---------------------------------------------------------
+        # Each page is wrapped in a scroll area so a small window can still
+        # reach every control — without this, the model list and the
+        # language picker get clipped on a 520-tall window and there's no
+        # scrollbar to bring them into view.
         self._stack = QStackedWidget()
         self.home_page = HomePage(cfg)
         self.shortcuts_page = ShortcutsPage(cfg)
         self.models_page = ModelsPage(cfg)
-        for page in (self.home_page, self.shortcuts_page, self.models_page):
-            self._stack.addWidget(page)
+        self.about_page = AboutPage(cfg)
+        for page in (
+            self.home_page, self.shortcuts_page, self.models_page, self.about_page
+        ):
+            self._stack.addWidget(scroll_wrap(page))
         root.addWidget(self._stack, 1)
 
         self._nav.currentRowChanged.connect(self._stack.setCurrentIndex)
@@ -104,6 +113,7 @@ class MainWindow(QMainWindow):
         self.home_page.set_config(cfg)
         self.shortcuts_page.set_config(cfg)
         self.models_page.set_config(cfg)
+        self.about_page.set_config(cfg)
 
     # ----- Persistence ----------------------------------------------------
 

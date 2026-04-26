@@ -39,14 +39,26 @@ def _make_cfg() -> config_mod.Config:
     )
 
 
-def test_window_constructs_with_three_pages(qapp):
+def test_window_constructs_with_four_pages(qapp):
     saved = []
     win = MainWindow(_make_cfg(), save_config=saved.append)
-    # Three nav rows for Home / Shortcuts / Models.
-    assert win._nav.count() == 3
-    assert win._stack.count() == 3
+    # Four nav rows: Home / Shortcuts / Models / About.
+    assert win._nav.count() == 4
+    assert win._stack.count() == 4
     assert win.home_page.auto_paste.isChecked() is True
     assert win.shortcuts_page.hotkey_recorder.value() == "<right_alt>"
+
+
+def test_transcript_entry_includes_timestamp(qapp):
+    """Each Home transcript row carries an HH:MM prefix and the raw text."""
+    from datetime import datetime
+    win = MainWindow(_make_cfg(), save_config=lambda _c: None)
+    when = datetime(2026, 4, 26, 14, 32, 5)
+    win.append_transcript("hello world")  # uses now()
+    win.home_page.add_transcript("test entry", when=when)
+    item = win.home_page._list.item(0)  # newest first
+    assert item.text() == "14:32\ntest entry"
+    assert item.data(0x0100) == "test entry"  # raw text retained for copy
 
 
 def test_state_pushes_into_home(qapp):
