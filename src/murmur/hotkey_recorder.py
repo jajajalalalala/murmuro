@@ -45,6 +45,7 @@ _MAC_VK_NAMES: dict[int, str] = {
     0x3B: "left_ctrl",
     0x3E: "right_ctrl",
     0x39: "caps_lock",
+    0x3F: "fn",  # captured via NSEvent global monitor (see fn_monitor.py)
     # Function row
     0x7A: "f1", 0x78: "f2", 0x63: "f3", 0x76: "f4",
     0x60: "f5", 0x61: "f6", 0x62: "f7", 0x64: "f8",
@@ -85,7 +86,7 @@ _MAC_VK_CHARS: dict[int, str] = {
 }
 
 _MAC_MODIFIER_VKS: frozenset[int] = frozenset({
-    0x37, 0x36, 0x38, 0x3C, 0x3A, 0x3D, 0x3B, 0x3E, 0x39,
+    0x37, 0x36, 0x38, 0x3C, 0x3A, 0x3D, 0x3B, 0x3E, 0x39, 0x3F,
 })
 
 
@@ -102,6 +103,7 @@ _HUMAN_NAMES: dict[str, str] = {
     "right_ctrl": "Right Control",
     "left_ctrl": "Left Control",
     "caps_lock": "Caps Lock",
+    "fn": "Fn",
     "space": "Space", "tab": "Tab", "esc": "Esc", "enter": "Return",
     "backspace": "Delete",   # the key labelled "delete" on Apple keyboards
     "delete": "Forward Delete",
