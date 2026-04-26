@@ -172,13 +172,15 @@ class HotkeyRecorder(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
         self._label = QLabel(humanize(initial))
         self._label.setStyleSheet(
-            "padding: 4px 8px; border: 1px solid #888; border-radius: 4px;"
-            "background: palette(base);"
+            "padding: 6px 10px; border: 1px solid palette(mid);"
+            "border-radius: 6px; background: palette(base);"
         )
         self._label.setMinimumWidth(180)
         self._button = QPushButton("Record…")
+        self._button.setProperty("primary", True)
         self._button.clicked.connect(self._start_recording)
         layout.addWidget(self._label, 1)
         layout.addWidget(self._button)

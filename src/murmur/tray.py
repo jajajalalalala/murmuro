@@ -25,6 +25,7 @@ from .permissions import (
     open_input_monitoring_settings,
     request_input_monitoring,
 )
+from .ui.theme import apply_theme
 
 _log = get_logger("tray")
 
@@ -140,6 +141,7 @@ def _hint_accessibility_if_denied(parent=None) -> None:
 def run_tray(cfg: config_mod.Config) -> int:
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+    apply_theme(app)
 
     if not QSystemTrayIcon.isSystemTrayAvailable():
         print("System tray not available on this platform.", file=sys.stderr)

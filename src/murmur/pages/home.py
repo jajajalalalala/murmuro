@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFormLayout,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -24,11 +23,19 @@ from PySide6.QtWidgets import (
 
 from .. import config as config_mod
 from ..app import State
+from ..ui.theme import (
+    STATE_BUSY,
+    STATE_IDLE,
+    STATE_RECORDING,
+    card,
+    hint_label,
+    section_label,
+)
 
 _STATE_LABELS = {
-    State.IDLE: ("Idle", "#9aa0a6"),
-    State.RECORDING: ("Recording", "#e53935"),
-    State.TRANSCRIBING: ("Transcribing", "#fbc02d"),
+    State.IDLE: ("Idle", STATE_IDLE),
+    State.RECORDING: ("Recording", STATE_RECORDING),
+    State.TRANSCRIBING: ("Transcribing", STATE_BUSY),
 }
 
 # Curated UI list — same set as the previous settings dialog so users keep
@@ -61,39 +68,48 @@ class HomePage(QWidget):
         self._cfg = cfg
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(14)
 
-        # --- Status row ------------------------------------------------
+        # --- Status card ----------------------------------------------
+        status_card = card()
+        status_layout = QVBoxLayout(status_card)
+        status_layout.setContentsMargins(18, 14, 18, 14)
+        status_layout.setSpacing(8)
+
         self._state_dot = QLabel()
         self._state_dot.setFixedSize(14, 14)
         self._state_text = QLabel("Idle")
-        self._state_text.setStyleSheet("font-size: 18px; font-weight: 600;")
+        self._state_text.setStyleSheet("font-size: 20px; font-weight: 700;")
         status_row = QHBoxLayout()
-        status_row.setSpacing(10)
+        status_row.setSpacing(12)
         status_row.addWidget(self._state_dot)
         status_row.addWidget(self._state_text)
         status_row.addStretch(1)
-        layout.addLayout(status_row)
+        status_layout.addLayout(status_row)
 
         self._summary = QLabel()
-        self._summary.setStyleSheet("color: palette(mid);")
-        layout.addWidget(self._summary)
+        self._summary.setProperty("dim", True)
+        status_layout.addWidget(self._summary)
+        layout.addWidget(status_card)
 
         # --- Recent transcripts ----------------------------------------
-        layout.addWidget(_section_label("Recent transcripts"))
+        layout.addWidget(section_label("Recent transcripts"))
         self._list = QListWidget()
         self._list.setAlternatingRowColors(True)
         self._list.itemActivated.connect(self._on_transcript_activated)
         layout.addWidget(self._list, 1)
-        copy_hint = QLabel("Double-click a row to copy it back to the clipboard.")
-        copy_hint.setStyleSheet("color: palette(mid); font-size: 11px;")
-        layout.addWidget(copy_hint)
+        layout.addWidget(hint_label(
+            "Double-click a row to copy it back to the clipboard."
+        ))
 
         # --- Preferences -----------------------------------------------
-        layout.addWidget(_separator())
-        prefs = QFormLayout()
+        layout.addWidget(section_label("Preferences"))
+        prefs_card = card()
+        prefs = QFormLayout(prefs_card)
+        prefs.setContentsMargins(18, 14, 18, 14)
         prefs.setHorizontalSpacing(16)
+        prefs.setVerticalSpacing(10)
 
         self.auto_paste = QCheckBox("Auto-paste at cursor (uncheck = clipboard only)")
         self.auto_paste.setChecked(cfg.auto_paste)
@@ -117,7 +133,7 @@ class HomePage(QWidget):
             lambda _: self.preferences_changed.emit()
         )
         prefs.addRow("Language:", self.language_combo)
-        layout.addLayout(prefs)
+        layout.addWidget(prefs_card)
 
         self.set_state(State.IDLE)
         self._refresh_summary()
@@ -181,14 +197,3 @@ class HomePage(QWidget):
         )
 
 
-def _section_label(text: str) -> QLabel:
-    label = QLabel(text)
-    label.setStyleSheet("font-weight: 600; margin-top: 4px;")
-    return label
-
-
-def _separator() -> QFrame:
-    line = QFrame()
-    line.setFrameShape(QFrame.Shape.HLine)
-    line.setFrameShadow(QFrame.Shadow.Sunken)
-    return line

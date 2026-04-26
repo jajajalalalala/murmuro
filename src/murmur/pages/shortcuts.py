@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
     QLabel,
     QVBoxLayout,
@@ -18,6 +17,7 @@ from PySide6.QtWidgets import (
 from .. import config as config_mod
 from ..hotkey_recorder import HotkeyRecorder
 from ..key_probe import KeyProbe
+from ..ui.theme import card, hint_label, section_label
 
 
 class ShortcutsPage(QWidget):
@@ -30,41 +30,35 @@ class ShortcutsPage(QWidget):
         self._cfg = cfg
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(14)
 
-        layout.addWidget(_section("Push to talk"))
-        ptt_card = _card()
+        layout.addWidget(section_label("Push to talk"))
+        ptt_card = card()
         ptt_layout = QHBoxLayout(ptt_card)
-        ptt_layout.setContentsMargins(16, 12, 16, 12)
+        ptt_layout.setContentsMargins(18, 14, 18, 14)
         desc = QLabel("Hold this key while you talk; release to transcribe.")
-        desc.setStyleSheet("color: palette(mid);")
+        desc.setProperty("dim", True)
         ptt_layout.addWidget(desc, 1)
         self.hotkey_recorder = HotkeyRecorder(cfg.hotkey)
         ptt_layout.addWidget(self.hotkey_recorder)
         layout.addWidget(ptt_card)
 
-        hint = QLabel(
+        layout.addWidget(hint_label(
             "Click Record, then press the key (or combo) you want as your "
             "push-to-talk shortcut. Esc cancels."
-        )
-        hint.setStyleSheet("color: palette(mid); font-size: 11px;")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        ))
 
-        layout.addSpacing(8)
-        layout.addWidget(_section("Test any key"))
-        probe_card = _card()
+        layout.addSpacing(10)
+        layout.addWidget(section_label("Test any key"))
+        probe_card = card()
         probe_layout = QVBoxLayout(probe_card)
-        probe_layout.setContentsMargins(16, 12, 16, 12)
-        probe_layout.setSpacing(8)
-        probe_intro = QLabel(
+        probe_layout.setContentsMargins(18, 14, 18, 14)
+        probe_layout.setSpacing(10)
+        probe_layout.addWidget(hint_label(
             "Not sure if a key is bindable on your keyboard? Click below and "
             "press it — Murmur shows what it sees."
-        )
-        probe_intro.setStyleSheet("color: palette(mid); font-size: 11px;")
-        probe_intro.setWordWrap(True)
-        probe_layout.addWidget(probe_intro)
+        ))
         self.key_probe = KeyProbe()
         probe_layout.addWidget(self.key_probe)
         layout.addWidget(probe_card)
@@ -82,15 +76,3 @@ class ShortcutsPage(QWidget):
         # the previous hotkey rather than clearing it to nothing.
         cfg.hotkey = self.hotkey_recorder.value() or self._cfg.hotkey
         return cfg
-
-
-def _section(text: str) -> QLabel:
-    label = QLabel(text)
-    label.setStyleSheet("font-weight: 600; font-size: 13px;")
-    return label
-
-
-def _card() -> QFrame:
-    frame = QFrame()
-    frame.setFrameShape(QFrame.Shape.StyledPanel)
-    return frame
