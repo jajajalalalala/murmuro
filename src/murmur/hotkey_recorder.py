@@ -113,6 +113,27 @@ _HUMAN_NAMES: dict[str, str] = {
 }
 
 
+def resolve_key_event(event: QKeyEvent) -> tuple[str, bool] | None:
+    """Resolve a Qt key event to ``(spec_token, is_modifier)``, or ``None``.
+
+    Resolution order: macOS VK→name table, then VK→char table, then
+    ``event.text()``. Shared by :class:`HotkeyRecorder` and the live
+    key-probe widget on the Shortcuts page so both interpret physical
+    keys identically.
+    """
+    vk = event.nativeVirtualKey()
+    name = _MAC_VK_NAMES.get(vk)
+    if name is not None:
+        return f"<{name}>", vk in _MAC_MODIFIER_VKS
+    char = _MAC_VK_CHARS.get(vk)
+    if char is not None:
+        return char, False
+    text = event.text()
+    if text and len(text) == 1 and text.isprintable() and not text.isspace():
+        return text.lower(), False
+    return None
+
+
 def humanize(spec: str) -> str:
     """Turn a pynput spec into something readable in the dialog."""
     if not spec:
@@ -197,27 +218,7 @@ class HotkeyRecorder(QWidget):
         self._stop_recording()
 
     def _token_for(self, event: QKeyEvent) -> tuple[str, bool] | None:
-        """Return ``(spec_token, is_modifier)`` for an event, or ``None``.
-
-        Resolution order:
-
-        1. Named special key by macOS VK (modifiers, F-keys, navigation,
-           keypad, ``fn``).
-        2. Printable character by macOS VK — gives the *physical* key,
-           ignoring shifted glyphs.
-        3. ``event.text()`` — covers non-Mac platforms and any unmapped VK.
-        """
-        vk = event.nativeVirtualKey()
-        name = _MAC_VK_NAMES.get(vk)
-        if name is not None:
-            return f"<{name}>", vk in _MAC_MODIFIER_VKS
-        char = _MAC_VK_CHARS.get(vk)
-        if char is not None:
-            return char, False
-        text = event.text()
-        if text and len(text) == 1 and text.isprintable() and not text.isspace():
-            return text.lower(), False
-        return None
+        return resolve_key_event(event)
 
     # ----- Qt key handling --------------------------------------------
 
