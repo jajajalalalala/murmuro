@@ -35,11 +35,18 @@ class MurmurApp:
         on_state_change: Callable[[State], None] | None = None,
         on_result: Callable[[str], None] | None = None,
         on_error: Callable[[Exception], None] | None = None,
+        on_paste_request: Callable[[str], None] | None = None,
     ) -> None:
         self.cfg = cfg
         self._on_state_change = on_state_change or (lambda _s: None)
         self._on_result = on_result or (lambda _t: None)
         self._on_error = on_error or (lambda _e: None)
+        # If provided, the host (tray) marshals the paste onto its UI thread.
+        # CGEventPost from a worker thread is silently filtered on Sonoma+
+        # for ad-hoc-signed bundles even with Accessibility granted; posting
+        # from the same thread that owns the run loop is the only reliable
+        # delivery path we've found.
+        self._on_paste_request = on_paste_request
         self._recorder = Recorder()
         self._transcriber = None  # lazy
         self._hotkey: PushToTalkHotkey | None = None
@@ -106,7 +113,10 @@ class MurmurApp:
             preview = text if len(text) <= 80 else text[:77] + "..."
             _log.info("transcript: %r", preview)
             if text:
-                if self.cfg.auto_paste:
+                if self.cfg.auto_paste and self._on_paste_request is not None:
+                    # Hand the paste off to the host's UI thread.
+                    self._on_paste_request(text)
+                elif self.cfg.auto_paste:
                     paste_at_cursor(text)
                 else:
                     to_clipboard(text)

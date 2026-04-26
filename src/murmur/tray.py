@@ -16,8 +16,11 @@ from ._logging import get_logger
 from .app import MurmurApp, State
 from .hud import RecordingHUD
 from .permissions import (
+    AccessibilityStatus,
     InputMonitoringStatus,
+    accessibility_status,
     input_monitoring_status,
+    open_accessibility_settings,
     open_input_monitoring_settings,
     request_input_monitoring,
 )
@@ -51,6 +54,7 @@ class _StateBridge(QObject):
     state_changed = Signal(object)  # State enum
     result = Signal(str)
     error = Signal(str)
+    paste_request = Signal(str)
 
 
 def _ensure_input_monitoring(parent=None) -> bool:
@@ -96,6 +100,43 @@ def _ensure_input_monitoring(parent=None) -> bool:
     return False
 
 
+def _hint_accessibility_if_denied(parent=None) -> None:
+    """If auto-paste is on but Accessibility isn't granted, surface a dialog.
+
+    Doesn't block startup — the app still runs (clipboard-only mode is a
+    perfectly usable degraded state). The point is to make the missing
+    permission visible from a menu-bar app, where stderr warnings are
+    invisible and pynput's silent hang would otherwise look like a bug in us.
+    """
+    status = accessibility_status()
+    _log.info("Accessibility status at startup: %s", status.value)
+    if status == AccessibilityStatus.GRANTED:
+        return
+    if status == AccessibilityStatus.UNAVAILABLE:
+        return
+
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Information)
+    box.setWindowTitle("Murmur — auto-paste needs Accessibility")
+    box.setText("Auto-paste at cursor is enabled but Accessibility isn't granted.")
+    box.setInformativeText(
+        "Without Accessibility, transcribed text still lands on your clipboard "
+        "(press ⌘V to paste manually) but Murmur can't simulate ⌘V for you.\n\n"
+        "To enable real auto-paste:\n"
+        "1. Click 'Open Accessibility settings' below.\n"
+        "2. Remove any stale Murmur entry, then drag dist/Murmur.app in or "
+        "toggle the existing one ON.\n"
+        "3. Quit and relaunch Murmur."
+    )
+    open_btn = box.addButton(
+        "Open Accessibility settings", QMessageBox.ButtonRole.ActionRole
+    )
+    box.addButton("Continue with clipboard only", QMessageBox.ButtonRole.AcceptRole)
+    box.exec()
+    if box.clickedButton() is open_btn:
+        open_accessibility_settings()
+
+
 def run_tray(cfg: config_mod.Config) -> int:
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
@@ -106,6 +147,9 @@ def run_tray(cfg: config_mod.Config) -> int:
 
     if not _ensure_input_monitoring():
         return 2
+
+    if cfg.auto_paste:
+        _hint_accessibility_if_denied()
 
     bridge = _StateBridge()
     tray = QSystemTrayIcon()
@@ -130,7 +174,7 @@ def run_tray(cfg: config_mod.Config) -> int:
     tray.setContextMenu(menu)
     tray.show()
 
-    hud = RecordingHUD()
+    hud = RecordingHUD() if cfg.show_hud else None
 
     def on_state(s: State) -> None:
         _log.info("state -> %s", s.value)
@@ -138,6 +182,8 @@ def run_tray(cfg: config_mod.Config) -> int:
         tray.setIcon(_dot_icon(color))
         tray.setToolTip(f"Murmur v{__version__} — {label}")
         state_action.setText(label)
+        if hud is None:
+            return
         if s is State.RECORDING:
             hud.show_at_top_center()
         else:
@@ -156,15 +202,26 @@ def run_tray(cfg: config_mod.Config) -> int:
         _log.error("error: %s", msg)
         tray.showMessage("Murmur error", msg, QSystemTrayIcon.MessageIcon.Critical, 4000)
 
+    def on_paste_request(text: str) -> None:
+        # Run from Qt's main thread. CGEventPost from a worker thread is
+        # silently filtered on Sonoma+ for ad-hoc-signed bundles — empirical
+        # finding from the diagnostic test paste. Same code path as
+        # auto-paste but executed on the run-loop thread.
+        from .inject import paste_at_cursor
+        ok = paste_at_cursor(text)
+        _log.info("paste from main thread returned %s (text=%d chars)", ok, len(text))
+
     bridge.state_changed.connect(on_state)
     bridge.result.connect(on_result)
     bridge.error.connect(on_error_msg)
+    bridge.paste_request.connect(on_paste_request)
 
     murmur = MurmurApp(
         cfg=cfg,
         on_state_change=lambda s: bridge.state_changed.emit(s),
         on_result=lambda t: bridge.result.emit(t),
         on_error=lambda e: bridge.error.emit(str(e)),
+        on_paste_request=lambda t: bridge.paste_request.emit(t),
     )
 
     # Defer hotkey start until after the event loop is running.

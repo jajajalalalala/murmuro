@@ -31,6 +31,14 @@ class Config:
     language: str = "auto"
     hotkey: str = "<right_alt>"
     auto_paste: bool = True
+    # Floating "Recording…" pill at the top of the screen. Even with
+    # Qt.Tool | WindowDoesNotAcceptFocus | WA_ShowWithoutActivating, the
+    # underlying NSPanel can briefly become key on macOS Sonoma+ when the
+    # owning process is LSUIElement, which breaks auto-paste by stealing
+    # focus from whatever text field the user is typing into. Off lets us
+    # confirm whether that's the culprit and gives users a way to dictate
+    # without any visible window changing focus.
+    show_hud: bool = True
     local: LocalBackendConfig = field(default_factory=LocalBackendConfig)
     openai: OpenAIBackendConfig = field(default_factory=OpenAIBackendConfig)
 
@@ -52,6 +60,7 @@ def load() -> Config:
         language=data.get("language", "auto"),
         hotkey=data.get("hotkey", "<right_alt>"),
         auto_paste=data.get("auto_paste", True),
+        show_hud=data.get("show_hud", True),
         local=LocalBackendConfig(**data.get("local", {})),
         openai=OpenAIBackendConfig(**data.get("openai", {})),
     )

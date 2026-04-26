@@ -1,16 +1,88 @@
 """Floating recording HUD — small pill at top of screen while you talk.
 
 Shown only during the RECORDING state so you can see at a glance that Murmur
-is listening. Frameless, always-on-top, no Dock entry, click-through-ish
-(we don't accept focus, so it doesn't steal the active app).
+is listening. Frameless, always-on-top, no Dock entry, and — critically —
+non-activating: the underlying NSPanel never becomes key, so showing it
+doesn't steal focus from whatever text field the user is typing into.
+Without this, push-to-talk would yank focus on every recording, leaving
+auto-paste with no cursor to paste at.
 """
 from __future__ import annotations
 
+import platform
 import time
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter
+from PySide6.QtGui import QColor, QFont, QGuiApplication, QPainter
 from PySide6.QtWidgets import QApplication, QWidget
+
+from ._logging import get_logger
+
+_log = get_logger("hud")
+
+
+def _apply_nonactivating_panel_style(widget: QWidget) -> None:
+    """Make the widget's NSPanel a true status-bar-style overlay.
+
+    Wispr-Flow-style: the pill is purely visual — it never becomes key,
+    never absorbs clicks/keystrokes, follows the user across Spaces, and
+    sits above ordinary windows. Reapplied on every show() because Qt
+    can re-init window properties after hide()/show() cycles.
+
+    Each piece earns its place:
+    - NSWindowStyleMaskNonactivatingPanel: AppKit refuses to make this
+      panel key, so [NSApp keyWindow] stays on the user's text field.
+    - NSStatusWindowLevel: above normal windows but below the menu bar's
+      true status items, matching what dictation HUDs use.
+    - canJoinAllSpaces|stationary|ignoresCycle|transient: the panel
+      doesn't follow Cmd-Tab cycling and doesn't pull the app forward
+      when a Space change happens.
+    - hidesOnDeactivate=False: keep the indicator visible while the
+      user types into another app.
+    - ignoresMouseEvents=True: clicks pass straight through to whatever
+      is underneath; the HUD is purely informational.
+    """
+    if platform.system() != "Darwin":
+        return
+    # Only the real Cocoa QPA backs Qt windows with NSView/NSWindow. Under
+    # the offscreen platform used in tests, winId() returns a non-NSView
+    # pointer and dereferencing it via objc segfaults.
+    if QGuiApplication.platformName() != "cocoa":
+        return
+    try:
+        import objc
+        from AppKit import (
+            NSStatusWindowLevel,
+            NSWindowCollectionBehaviorCanJoinAllSpaces,
+            NSWindowCollectionBehaviorIgnoresCycle,
+            NSWindowCollectionBehaviorStationary,
+            NSWindowCollectionBehaviorTransient,
+            NSWindowStyleMaskNonactivatingPanel,
+        )
+    except ImportError:
+        _log.warning("pyobjc unavailable; HUD may steal focus on macOS")
+        return
+
+    view_ptr = int(widget.winId())
+    if not view_ptr:
+        return
+    try:
+        view = objc.objc_object(c_void_p=view_ptr)
+        window = view.window()
+        if window is None:
+            return
+        window.setStyleMask_(window.styleMask() | NSWindowStyleMaskNonactivatingPanel)
+        window.setLevel_(NSStatusWindowLevel)
+        window.setCollectionBehavior_(
+            NSWindowCollectionBehaviorCanJoinAllSpaces
+            | NSWindowCollectionBehaviorStationary
+            | NSWindowCollectionBehaviorIgnoresCycle
+            | NSWindowCollectionBehaviorTransient
+        )
+        window.setHidesOnDeactivate_(False)
+        window.setIgnoresMouseEvents_(True)
+    except Exception as e:  # noqa: BLE001
+        _log.warning("could not configure HUD panel: %s", e)
 
 
 class RecordingHUD(QWidget):
@@ -28,6 +100,10 @@ class RecordingHUD(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        # Belt-and-suspenders click-through: even if the AppKit-level
+        # ignoresMouseEvents call fails to land for some reason, Qt itself
+        # won't try to consume mouse input on this widget.
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.resize(self.WIDTH, self.HEIGHT)
 
         self._t0: float = 0.0
@@ -53,7 +129,10 @@ class RecordingHUD(QWidget):
         self._pulse_phase = 0
         self._timer.start()
         self.show()
-        self.raise_()
+        # Reapply on every show: Qt may regenerate the underlying NSPanel
+        # after a hide()/show() cycle, which resets the style mask, level,
+        # and collection behavior we set last time.
+        _apply_nonactivating_panel_style(self)
 
     def hide(self) -> None:
         self._timer.stop()
