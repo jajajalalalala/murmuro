@@ -63,26 +63,26 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 
 ---
 
-## v0.5 — "Daily-driver polish"
+## v0.5 — "Daily-driver polish" ✅
 
 **Goal:** Sand off the rough edges of v0.4 so Murmur feels like a real app. Ordered by user-felt priority — top items ship first.
 
 ### P0 — Pain points blocking daily use
-- [ ] **Full keyboard coverage for hotkeys** (`feat/hotkeys-full-coverage`)
-  - [ ] Expand `hotkey_recorder._MAC_VK_NAMES` to all standard keys: digits, letters, punctuation, arrows, navigation cluster (home/end/pgup/pgdn/del/backspace), caps_lock, full F1–F20
-  - [ ] Same coverage on Windows (Qt nativeVirtualKey → pynput name)
-  - [ ] First-launch probe: detect which keys actually fire keyboard events on this OS / locale and show the result in **Shortcuts → Available keys** so the user knows what's recordable
-  - [ ] `fn` key on macOS: pynput's normal listener can't see it — wire `NSEvent.addGlobalMonitorForEventsMatchingMask:NSEventMaskFlagsChanged` as a side channel and treat it as a synthesized `<fn>` token
-  - [ ] Tests for each new VK in the recorder map
-- [ ] **UI redesign — colorful, accessible, Wispr-Flow-inspired** (`feat/ui-redesign`)
-  - [ ] Custom QPalette: accent (teal / violet from icon), distinct surface colors for left rail vs content, light + dark adaptive
-  - [ ] Replace ad-hoc `setStyleSheet` calls with one stylesheet shipped from `theme.py`
-  - [ ] Style: pill-shaped state badge, card-style model rows, segmented-control feel for the provider switch, larger headings
-  - [ ] Verify contrast in macOS Light **and** Dark; no black-on-near-black text
+- [x] **Full keyboard coverage for hotkeys** (`feat/hotkeys-full-coverage`)
+  - [x] Expand `hotkey_recorder._MAC_VK_NAMES` to all standard keys: digits, letters, punctuation, arrows, navigation cluster (home/end/pgup/pgdn/del/backspace), caps_lock, full F1–F20
+  - [x] First-launch-style **Test any key** probe on the Shortcuts page (`key_probe.py`) so the user can verify what's recordable on their OS / locale
+  - [x] `fn` key on macOS: `NSEvent.addGlobalMonitorForEventsMatchingMask:NSEventMaskFlagsChanged` side channel, surfaced as a synthesized `<fn>` token
+  - [x] Tests for each new VK in the recorder map
+  - [ ] Same coverage on Windows (Qt nativeVirtualKey → pynput name) — deferred, no Windows daily-driver
+- [x] **UI redesign — colorful, accessible, Wispr-Flow-inspired** (`feat/ui-redesign`)
+  - [x] Custom QPalette + single stylesheet shipped from `ui/theme.py`: violet accent (`#7c5cff`), distinct surface colors for left rail vs content, auto light/dark detection (`MURMUR_FORCE_THEME` override for tests)
+  - [x] Style: card-grouped sections, accent state pill, primary action buttons, focus-ring on inputs
+  - [x] Verified contrast in macOS Light **and** Dark; section labels and dim text deliberately pushed away from window background
+  - [x] About page added under nav so version / log path / config path are one click away
 
 ### P1 — Quality-of-life
-- [ ] **Transcript table** (`feat/transcripts-table`) — replace the `QListWidget` on Home with a 2-column `QTableView` (Time | Text), wraps within the window, click row to copy. Lays groundwork for persistence.
-- [ ] **Model download progress** (`feat/model-download-progress`) — poll the HF cache dir size against the known model size and feed a `QProgressBar` per `_LocalModelRow`; cancel button stops the worker.
+- [x] **Wrapped, timestamped transcript list** — Home transcript rows show `HH:MM` + the text on its own line, word-wrap fills the card width, raw text retained at `UserRole` for click-to-copy. (Full table view deferred to v1.1+ — wrapping was the actual pain point.)
+- [x] **Model download progress** (`feat/model-download-progress`) — `_dir_size_bytes` walks the HF cache dir and a 500 ms `QTimer` feeds a `QProgressBar` per `_LocalModelRow`; clamps to 99% so the worker's `finished` signal owns completion.
 
 ### P2 — Provider expansion (was v0.5)
 - [ ] `transcribe/openai_compatible.py` — single transcriber covering OpenAI / Groq / DeepSeek / Kimi / custom
