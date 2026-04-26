@@ -1,16 +1,12 @@
 # Murmur
 
-> Press a key. Speak. Get text. — A minimal, local-first dictation tool inspired by [Wispr Flow](https://wisprflow.ai/).
+> Press a key. Speak. Get text.
 
 Murmur is a personal voice-to-text dictation tool for macOS and Windows. Hold a hotkey, speak, release — your words appear at the cursor. Runs **locally by default** via [`faster-whisper`](https://github.com/SYSTRAN/faster-whisper), with an optional OpenAI Whisper API backend.
 
-## Why another one?
-
-[Wispr Flow](https://wisprflow.ai/) is excellent but closed-source, subscription-based, and full of features I don't need. Murmur is what I want: a single hotkey, a single job, a single binary I own.
-
 ## Status
 
-🚧 **v0.4-dev** — push-to-talk, packaged macOS `.app`, reliable auto-paste, main window with Home / Shortcuts / Models pages. See [ROADMAP.md](ROADMAP.md).
+**v0.5** — push-to-talk, packaged macOS `.app`, reliable auto-paste, main window with Home / Shortcuts / Models / About pages, full-keyboard hotkey coverage, themed UI, live model download progress. See [ROADMAP.md](ROADMAP.md).
 
 ## Features
 

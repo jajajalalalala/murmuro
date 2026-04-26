@@ -4,7 +4,7 @@
 
 ## What Murmur is
 
-A minimal, local-first push-to-talk dictation tool for macOS and Windows. Inspired by Wispr Flow, but stripped down to one job: hold a hotkey → speak → text appears.
+A minimal, local-first push-to-talk dictation tool for macOS and Windows. One job: hold a hotkey → speak → text appears.
 
 The product vision and milestone-by-milestone roadmap live in [ROADMAP.md](ROADMAP.md). Treat it as the source of truth for what is shipped, what is in progress, and what is explicitly *not* being built.
 

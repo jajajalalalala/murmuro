@@ -74,7 +74,7 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
   - [x] `fn` key on macOS: `NSEvent.addGlobalMonitorForEventsMatchingMask:NSEventMaskFlagsChanged` side channel, surfaced as a synthesized `<fn>` token
   - [x] Tests for each new VK in the recorder map
   - [ ] Same coverage on Windows (Qt nativeVirtualKey → pynput name) — deferred, no Windows daily-driver
-- [x] **UI redesign — colorful, accessible, Wispr-Flow-inspired** (`feat/ui-redesign`)
+- [x] **UI redesign — colorful, accessible** (`feat/ui-redesign`)
   - [x] Custom QPalette + single stylesheet shipped from `ui/theme.py`: violet accent (`#7c5cff`), distinct surface colors for left rail vs content, auto light/dark detection (`MURMUR_FORCE_THEME` override for tests)
   - [x] Style: card-grouped sections, accent state pill, primary action buttons, focus-ring on inputs
   - [x] Verified contrast in macOS Light **and** Dark; section labels and dim text deliberately pushed away from window background
@@ -121,7 +121,7 @@ Each item must justify itself by being missed in daily use. Don't pre-build.
 - Local model warm-up at app start (latency)
 - Custom vocabulary / replacements (e.g. "claude" → "Claude")
 - Transcript history viewer
-- AI rewrite pass (opt-in, using OpenAI/Anthropic) — Wispr's killer feature
+- AI rewrite pass (opt-in, using OpenAI/Anthropic)
 - Multi-language auto-detect
 - Streaming transcription
 - Dictionary of acronyms loaded from a text file
