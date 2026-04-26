@@ -175,6 +175,11 @@ def run_tray(cfg: config_mod.Config) -> int:
     tray.show()
 
     main_window = MainWindow(cfg)
+    # Open the window on launch so the user lands somewhere they can see —
+    # the tray icon alone is easy to miss, especially on first install.
+    main_window.show()
+    main_window.raise_()
+    main_window.activateWindow()
     hud = RecordingHUD() if cfg.show_hud else None
 
     def on_state(s: State) -> None:

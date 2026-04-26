@@ -22,6 +22,11 @@ def qapp():
     yield QApplication.instance() or QApplication(sys.argv)
 
 
+def _silent_restart(*_args, **_kwargs) -> bool:
+    """Stub for tests — never actually pop a modal QMessageBox or relaunch."""
+    return False
+
+
 def _make_cfg() -> config_mod.Config:
     return config_mod.Config(
         backend="local",
@@ -77,7 +82,11 @@ def test_toggling_auto_paste_persists_and_emits(qapp):
 
 def test_recording_a_new_hotkey_persists_via_apply(qapp):
     saved: list[config_mod.Config] = []
-    win = MainWindow(_make_cfg(), save_config=saved.append)
+    win = MainWindow(
+        _make_cfg(),
+        save_config=saved.append,
+        confirm_restart_fn=_silent_restart,
+    )
     # Simulate the recorder having captured a new spec, then trigger persist
     # by toggling the auto-paste checkbox (the simplest real signal).
     win.shortcuts_page.hotkey_recorder.set_value("<f9>")
@@ -87,7 +96,11 @@ def test_recording_a_new_hotkey_persists_via_apply(qapp):
 
 def test_blank_hotkey_falls_back_to_existing_value(qapp):
     saved: list[config_mod.Config] = []
-    win = MainWindow(_make_cfg(), save_config=saved.append)
+    win = MainWindow(
+        _make_cfg(),
+        save_config=saved.append,
+        confirm_restart_fn=_silent_restart,
+    )
     win.shortcuts_page.hotkey_recorder.set_value("")
     win.home_page.auto_paste.setChecked(False)
     assert saved[-1].hotkey == "<right_alt>"  # stays at the original

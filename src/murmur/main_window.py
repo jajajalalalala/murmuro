@@ -12,6 +12,7 @@ running ``MurmurApp`` can re-bind the hotkey and rebuild the transcriber.
 """
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable
 
 from PySide6.QtCore import QSize, Signal
@@ -31,6 +32,7 @@ from .app import State
 from .pages.home import HomePage
 from .pages.models import ModelsPage
 from .pages.shortcuts import ShortcutsPage
+from .restart import confirm_restart, restart_reasons
 
 _log = get_logger("main_window")
 
@@ -45,10 +47,13 @@ class MainWindow(QMainWindow):
         cfg: config_mod.Config,
         save_config: Callable[[config_mod.Config], None] | None = None,
         parent: QWidget | None = None,
+        confirm_restart_fn: Callable[..., bool] | None = None,
     ) -> None:
         super().__init__(parent)
         self._cfg = cfg
         self._save_config = save_config or config_mod.save
+        # Injectable for tests so we don't actually re-exec.
+        self._confirm_restart = confirm_restart_fn or confirm_restart
 
         self.setWindowTitle("Murmur")
         self.resize(QSize(760, 520))
@@ -110,8 +115,9 @@ class MainWindow(QMainWindow):
     # ----- Persistence ----------------------------------------------------
 
     def _persist_changes(self) -> None:
-        # Build a fresh Config from the current cfg (so every page sees the
-        # most recent value when applying).
+        # Pages mutate the cfg in place, so snapshot before applying so
+        # restart_reasons can compare old vs new.
+        previous = copy.deepcopy(self._cfg)
         draft = self._cfg
         draft = self.home_page.apply_to_config(draft)
         draft = self.shortcuts_page.apply_to_config(draft)
@@ -124,6 +130,13 @@ class MainWindow(QMainWindow):
         self._cfg = draft
         self.home_page.set_config(draft)  # refresh the summary line
         self.config_saved.emit(draft)
+
+        # If the change is one we'd rather apply via a clean relaunch
+        # (model swap, provider swap, hotkey rebinding), ask the user.
+        # Cancelling leaves the change saved on disk for the next launch.
+        reasons = restart_reasons(previous, draft)
+        if reasons:
+            self._confirm_restart(reasons[0], self)
 
     # ----- Window behavior ------------------------------------------------
 
