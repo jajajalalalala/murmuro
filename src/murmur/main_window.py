@@ -66,15 +66,8 @@ class MainWindow(QMainWindow):
 
         # --- Left rail -----------------------------------------------------
         self._nav = QListWidget()
-        self._nav.setFixedWidth(160)
-        self._nav.setSpacing(2)
-        self._nav.setStyleSheet(
-            "QListWidget { background: palette(window); border: none; "
-            "border-right: 1px solid palette(mid); padding: 12px 0; }"
-            "QListWidget::item { padding: 10px 16px; }"
-            "QListWidget::item:selected { background: palette(highlight); "
-            "color: palette(highlighted-text); border-radius: 4px; }"
-        )
+        self._nav.setObjectName("nav")
+        self._nav.setFixedWidth(170)
         for label in ("Home", "Shortcuts", "Models"):
             self._nav.addItem(QListWidgetItem(label))
         root.addWidget(self._nav)

@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -39,6 +38,7 @@ from ..providers import (
     find_cloud_provider,
     find_local_model,
 )
+from ..ui.theme import card, primary_button, section_label
 
 _log = get_logger("models_page")
 
@@ -85,16 +85,17 @@ class _LocalModelRow(QFrame):
     def __init__(self, model: LocalModel, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.model = model
-        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setProperty("card", True)
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(14, 10, 14, 10)
+        row.setContentsMargins(16, 12, 16, 12)
+        row.setSpacing(12)
 
         title = QLabel(f"<b>{model.label}</b>")
         meta_bits = [_format_size(model.size_mb)]
         meta_bits.append("Multilingual" if model.multilingual else "English-only")
         meta = QLabel("  ·  ".join(meta_bits))
-        meta.setStyleSheet("color: palette(mid);")
+        meta.setProperty("dim", True)
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
@@ -102,9 +103,9 @@ class _LocalModelRow(QFrame):
         text_col.addWidget(meta)
 
         self._status = QLabel()
-        self._status.setStyleSheet("color: palette(mid); font-size: 11px;")
+        self._status.setProperty("hint", True)
 
-        self._action = QPushButton()
+        self._action = primary_button("")
         self._action.clicked.connect(self._on_action)
 
         row.addLayout(text_col, 1)
@@ -264,12 +265,17 @@ class _CloudPanel(QWidget):
         super().__init__(parent)
         self._provider: CloudProvider | None = None
 
-        layout = QFormLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        cloud_card = card()
+        layout = QFormLayout(cloud_card)
+        layout.setContentsMargins(18, 14, 18, 14)
         layout.setHorizontalSpacing(16)
+        layout.setVerticalSpacing(10)
 
         self._rate_label = QLabel()
-        self._rate_label.setStyleSheet("color: palette(mid); font-size: 11px;")
+        self._rate_label.setProperty("hint", True)
 
         self.model_combo = QComboBox()
         self.model_combo.currentIndexChanged.connect(lambda _: self.config_dirty.emit())
@@ -282,8 +288,10 @@ class _CloudPanel(QWidget):
         layout.addRow("API key env var:", self.api_key_env)
 
         self._key_status = QLabel()
-        self._key_status.setStyleSheet("color: palette(mid); font-size: 11px;")
+        self._key_status.setProperty("hint", True)
         layout.addRow("", self._key_status)
+        outer.addWidget(cloud_card)
+        outer.addStretch(1)
 
         self.api_key_env.textChanged.connect(self._refresh_key_status)
 
@@ -342,18 +350,22 @@ class ModelsPage(QWidget):
         self._cfg = cfg
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setContentsMargins(28, 28, 28, 28)
         layout.setSpacing(14)
 
+        layout.addWidget(section_label("Provider"))
+        provider_card = card()
+        provider_form = QFormLayout(provider_card)
+        provider_form.setContentsMargins(18, 14, 18, 14)
+        provider_form.setHorizontalSpacing(16)
         self.provider_combo = QComboBox()
         self.provider_combo.addItem("Local (on-device)", userData=self.LOCAL_PROVIDER_ID)
         for provider in CLOUD_PROVIDERS:
             self.provider_combo.addItem(provider.label, userData=provider.id)
         self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
-
-        provider_row = QFormLayout()
-        provider_row.addRow("Provider:", self.provider_combo)
-        layout.addLayout(provider_row)
+        provider_form.addRow("Provider:", self.provider_combo)
+        layout.addWidget(provider_card)
+        layout.addWidget(section_label("Models"))
 
         self._stack = QStackedWidget()
         self._local_panel = _LocalPanel(cfg)
