@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from .. import config as config_mod
 from ..hotkey_recorder import HotkeyRecorder
+from ..key_probe import KeyProbe
 
 
 class ShortcutsPage(QWidget):
@@ -50,6 +51,23 @@ class ShortcutsPage(QWidget):
         hint.setStyleSheet("color: palette(mid); font-size: 11px;")
         hint.setWordWrap(True)
         layout.addWidget(hint)
+
+        layout.addSpacing(8)
+        layout.addWidget(_section("Test any key"))
+        probe_card = _card()
+        probe_layout = QVBoxLayout(probe_card)
+        probe_layout.setContentsMargins(16, 12, 16, 12)
+        probe_layout.setSpacing(8)
+        probe_intro = QLabel(
+            "Not sure if a key is bindable on your keyboard? Click below and "
+            "press it — Murmur shows what it sees."
+        )
+        probe_intro.setStyleSheet("color: palette(mid); font-size: 11px;")
+        probe_intro.setWordWrap(True)
+        probe_layout.addWidget(probe_intro)
+        self.key_probe = KeyProbe()
+        probe_layout.addWidget(self.key_probe)
+        layout.addWidget(probe_card)
 
         layout.addStretch(1)
 
