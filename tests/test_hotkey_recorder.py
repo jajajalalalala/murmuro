@@ -30,6 +30,7 @@ _VK_SPACE = 0x31
 _VK_F9 = 0x65
 _VK_F17 = 0x40
 _VK_CAPS_LOCK = 0x39
+_VK_FN = 0x3F
 _VK_LEFT_ARROW = 0x7B
 _VK_PAGE_UP = 0x74
 _VK_KP_5 = 0x57
@@ -156,6 +157,21 @@ def test_punctuation_via_vk_unshifted(qapp):
     _press(rec, _VK_LEFT_SHIFT)
     _press(rec, _VK_SEMICOLON, text=":")
     assert rec.value() == "<left_shift>+;"
+
+
+def test_fn_recorded_as_modifier(qapp):
+    """Fn alone → '<fn>' (treated as modifier, commits on release)."""
+    rec = HotkeyRecorder("<f9>")
+    rec._start_recording()
+    _press(rec, _VK_FN)
+    assert rec._recording  # still held, not yet committed
+    _release(rec, _VK_FN)
+    assert rec.value() == "<fn>"
+    assert not rec._recording
+
+
+def test_fn_humanizes_to_fn(qapp):
+    assert humanize("<fn>") == "Fn"
 
 
 def test_caps_lock_recorded_as_modifier(qapp):

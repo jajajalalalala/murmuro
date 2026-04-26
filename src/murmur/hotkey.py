@@ -13,8 +13,26 @@ from collections.abc import Callable
 from pynput import keyboard
 
 from ._logging import get_logger
+from .fn_monitor import FnMonitor
 
 _log = get_logger("hotkey")
+
+
+class _FnSentinel:
+    """Stand-in for the macOS Fn key in target/held key sets.
+
+    pynput has no Key.fn enum on macOS, so we represent it with a hashable
+    singleton and route press/release notifications from
+    :class:`FnMonitor` through the same code path as pynput keys.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "<fn>"
+
+
+FN_KEY = _FnSentinel()
 
 
 class PushToTalkHotkey:
@@ -37,6 +55,7 @@ class PushToTalkHotkey:
         self._on_release = on_release
         self._target_keys = self._parse_keys(key_spec)
         self._listener: keyboard.Listener | None = None
+        self._fn_monitor: FnMonitor | None = None
         self._held_keys: set = set()
         self._is_active = False  # True while the chord is fully held
 
@@ -67,12 +86,21 @@ class PushToTalkHotkey:
 
     @classmethod
     def _parse_keys(cls, spec: str) -> set:
-        """Parse a hotkey spec into a set of pynput Key/KeyCode objects."""
+        """Parse a hotkey spec into a set of pynput Key/KeyCode objects.
+
+        ``<fn>`` is special — there is no pynput Key for it on macOS, so
+        we substitute :data:`FN_KEY`, a sentinel the listener routes
+        press/release events through alongside pynput's keys (see
+        :class:`murmur.fn_monitor.FnMonitor`).
+        """
         out = set()
         for token in spec.split("+"):
             token = token.strip()
             if token.startswith("<") and token.endswith(">"):
                 name = token[1:-1].lower()
+                if name == "fn":
+                    out.add(FN_KEY)
+                    continue
                 name = cls.KEY_ALIASES.get(name, name)
                 key = getattr(keyboard.Key, name, None)
                 if key is None:
@@ -142,6 +170,19 @@ class PushToTalkHotkey:
             daemon=True,
         ).start()
 
+        # Side channel for the macOS Fn key: pynput can't see flagsChanged
+        # for NSEventModifierFlagFunction, so we attach our own NSEvent
+        # global monitor and forward press/release events through the same
+        # held-keys logic by passing FN_KEY.
+        if FN_KEY in self._target_keys:
+            self._fn_monitor = FnMonitor(
+                on_press=lambda: self._on_key_press(FN_KEY),
+                on_release=lambda: self._on_key_release(FN_KEY),
+            )
+            ok = self._fn_monitor.start()
+            if not ok:
+                _log.warning("Fn monitor not armed; <fn> hotkey will not fire")
+
     def _watch_listener(self) -> None:
         listener = self._listener
         if listener is None:
@@ -166,3 +207,6 @@ class PushToTalkHotkey:
             _log.info("stopping pynput Listener")
             self._listener.stop()
             self._listener = None
+        if self._fn_monitor is not None:
+            self._fn_monitor.stop()
+            self._fn_monitor = None
