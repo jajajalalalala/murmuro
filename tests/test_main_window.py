@@ -92,6 +92,22 @@ def test_toggling_auto_paste_persists_and_emits(qapp):
     assert emitted and emitted[-1].auto_paste is False
 
 
+def test_silent_mode_toggle_persists_play_beeps(qapp):
+    """Unchecking the play_beeps checkbox = entering silent mode. The
+    change must round-trip through save_config so a relaunch keeps it."""
+    saved: list[config_mod.Config] = []
+    win = MainWindow(_make_cfg(), save_config=saved.append)
+    assert win.home_page.play_beeps.isChecked() is True
+
+    win.home_page.play_beeps.setChecked(False)  # enter silent mode
+
+    assert saved, "save_config was never called after silent-mode toggle"
+    assert saved[-1].play_beeps is False
+
+    win.home_page.play_beeps.setChecked(True)   # exit silent mode
+    assert saved[-1].play_beeps is True
+
+
 def test_recording_a_new_hotkey_persists_via_apply(qapp):
     saved: list[config_mod.Config] = []
     win = MainWindow(

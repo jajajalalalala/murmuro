@@ -134,8 +134,10 @@ class HomePage(QWidget):
         self.show_hud.toggled.connect(lambda _: self.preferences_changed.emit())
         prefs.addRow("", self.show_hud)
 
+        # Phrased as "silent mode" so the meaning is unambiguous from the
+        # label alone — checked = no beeps, no popup, no audible cue.
         self.play_beeps = QCheckBox(
-            "Play start/stop beeps (audible cue when recording)"
+            "Play start/stop beeps  ·  uncheck for Silent mode"
         )
         self.play_beeps.setChecked(cfg.play_beeps)
         self.play_beeps.toggled.connect(lambda _: self.preferences_changed.emit())
