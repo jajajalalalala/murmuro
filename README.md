@@ -6,7 +6,7 @@ Murmur is a personal voice-to-text dictation tool for macOS and Windows. Hold a 
 
 ## Status
 
-**v0.5** — push-to-talk, packaged macOS `.app`, reliable auto-paste, main window with Home / Shortcuts / Models / About pages, full-keyboard hotkey coverage, themed UI, live model download progress. See [ROADMAP.md](ROADMAP.md).
+**v0.5** — push-to-talk, packaged macOS `.app`, reliable auto-paste, main window with Home / Shortcuts / Models / About pages, full-keyboard hotkey coverage, themed UI, live model download progress, per-row model delete, start/stop beeps + silent mode, bottom-anchored HUD, and a `--uninstall` command. See [ROADMAP.md](ROADMAP.md).
 
 ## Features
 
@@ -14,8 +14,10 @@ Murmur is a personal voice-to-text dictation tool for macOS and Windows. Hold a 
 - 🧠 Local Whisper transcription via faster-whisper (no internet required); pick from `tiny` → `large-v3` and `distil-large-v3` with one-click downloads
 - 🔌 Pluggable backend: switch to OpenAI Whisper API by entering an env-var name; the registry is structured so Groq / Kimi / DeepSeek slot in next
 - 📋 Reliable auto-paste at cursor on macOS (works around CGEventPost autorepeat quirks and HUD focus stealing), with clipboard-only fallback
-- 🪶 Menu bar / system tray app — no Dock icon, no focus-stealing HUD
-- 🪟 Main window with three pages: **Home** (state + last 5 transcripts + global toggles), **Shortcuts**, **Models**
+- 🪶 Menu bar / system tray app — no Dock icon, no focus-stealing HUD; recording HUD anchors at the **bottom** of the screen, out of the way of the menu bar / notch
+- 🔔 Optional **start/stop beeps** for eyes-free push-to-talk confirmation; flip **Silent mode** in the tray menu (or the Home checkbox) to mute them
+- 🧹 One-line full uninstall: `murmur --uninstall` wipes config, logs, and downloaded Whisper models (other HuggingFace caches are left alone). Add `--dry-run` to preview, `--yes` to skip the prompt
+- 🪟 Main window with four pages: **Home** (state + last 5 transcripts + global toggles), **Shortcuts**, **Models**, **About**
 
 ## Non-goals
 
@@ -36,6 +38,17 @@ cd murmur
 ./start.sh --setup-only # install dependencies, don't launch
 ./start.sh --reset      # wipe .venv and reinstall
 ```
+
+To remove Murmur entirely:
+
+```bash
+murmur --uninstall --dry-run   # preview what would be removed
+murmur --uninstall --yes       # actually remove (config, logs, Whisper caches)
+```
+
+The bundled `Murmur.app` and the macOS Privacy & Security entries are
+listed in the printed plan but not deleted automatically — drag the app
+to the Trash and revoke the toggles manually.
 
 The first run downloads a Whisper model (~150 MB for `base`).
 
