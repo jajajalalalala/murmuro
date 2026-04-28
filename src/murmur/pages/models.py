@@ -265,7 +265,9 @@ class _LocalPanel(QWidget):
 
         # Custom-model rows aren't shipped in the registry but the user may
         # have entered one in the TOML by hand — keep it visible/active.
-        if cfg.local.model not in self._rows:
+        # Skip when the model is empty: a fresh install starts with no
+        # selection, and we don't want to render a "(custom)" row labelled "".
+        if cfg.local.model and cfg.local.model not in self._rows:
             custom = LocalModel(
                 id=cfg.local.model,
                 label=cfg.local.model + " (custom)",

@@ -254,3 +254,23 @@ def test_delete_model_files_handles_missing_dir(tmp_path):
     """Helper is a no-op if the path doesn't exist (defensive)."""
     from murmur.pages.models import _delete_model_files
     _delete_model_files(tmp_path / "nope")  # must not raise
+
+
+# ---- Fresh-install / empty-model behavior --------------------------------
+
+def test_fresh_install_marks_no_row_active(qapp, monkeypatch, tmp_path):
+    """With cfg.local.model='' (the new default), no row paints itself
+    active and the Models page lists every shipped model with its real
+    Download/Use state."""
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    page = ModelsPage(_cfg(model=""))
+    panel = page._local_panel
+    assert panel.active_model_id == ""
+    assert all(row._is_active is False for row in panel._rows.values())
+
+
+def test_fresh_install_does_not_render_phantom_custom_row(qapp, monkeypatch, tmp_path):
+    """Empty model must not produce a '(custom)' row labelled with ''."""
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    page = ModelsPage(_cfg(model=""))
+    assert "" not in page._local_panel._rows

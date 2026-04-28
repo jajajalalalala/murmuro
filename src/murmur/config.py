@@ -14,7 +14,12 @@ APP_NAME = "Murmur"
 
 @dataclass
 class LocalBackendConfig:
-    model: str = "base"
+    # Empty by default — a fresh install ships with no model selected so
+    # the first push-to-talk doesn't silently pull ~145 MB from
+    # HuggingFace. The user picks a model on the Models page; until then
+    # transcribe.factory.build raises a clear error and the UI nudges
+    # them toward it.
+    model: str = ""
     device: str = "auto"
     compute_type: str = "int8"
 

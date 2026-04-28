@@ -136,6 +136,23 @@ def test_blank_hotkey_falls_back_to_existing_value(qapp):
     assert saved[-1].hotkey == "<right_alt>"  # stays at the original
 
 
+def test_home_summary_says_pick_a_model_when_local_is_empty(qapp):
+    """Fresh install: the Home summary points the user at the Models page
+    instead of showing 'Model ' with a blank value."""
+    cfg = config_mod.Config(
+        backend="local",
+        language="auto",
+        hotkey="<right_alt>",
+        auto_paste=True,
+        show_hud=True,
+        local=config_mod.LocalBackendConfig(model=""),  # empty
+        openai=config_mod.OpenAIBackendConfig(api_key_env="OPENAI_API_KEY"),
+    )
+    win = MainWindow(cfg, save_config=lambda _c: None)
+    text = win.home_page._summary.text()
+    assert "(none" in text and "Models" in text
+
+
 def test_close_event_hides_instead_of_quitting(qapp):
     win = MainWindow(_make_cfg(), save_config=lambda _c: None)
     win.show()

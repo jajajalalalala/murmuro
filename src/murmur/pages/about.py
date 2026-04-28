@@ -128,7 +128,7 @@ class AboutPage(QWidget):
     @staticmethod
     def _describe_model(cfg: config_mod.Config) -> str:
         if cfg.backend == "local":
-            return cfg.local.model
+            return cfg.local.model or "(none selected)"
         return getattr(cfg, cfg.backend, cfg.openai).model
 
 

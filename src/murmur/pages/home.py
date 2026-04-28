@@ -207,9 +207,14 @@ class HomePage(QWidget):
             pyperclip.copy(full_text)
 
     def _refresh_summary(self) -> None:
+        if self._cfg.backend == "local":
+            model = self._cfg.local.model or "(none — pick one in Models)"
+        else:
+            backend_cfg = getattr(self._cfg, self._cfg.backend, self._cfg.openai)
+            model = backend_cfg.model
         self._summary.setText(
             f"Hotkey {self._cfg.hotkey}  ·  Backend {self._cfg.backend}  "
-            f"·  Model {self._cfg.local.model}"
+            f"·  Model {model}"
         )
 
 

@@ -7,6 +7,14 @@ from .base import Transcriber
 
 def build(cfg: cfg_mod.Config) -> Transcriber:
     if cfg.backend == "local":
+        if not cfg.local.model:
+            # Fresh installs default to no selection — surface a friendly
+            # message instead of letting faster-whisper crash with an opaque
+            # path-resolution error.
+            raise RuntimeError(
+                "No local model selected. Open Murmur → Models and pick "
+                "one (Tiny is fastest, Base is the recommended default)."
+            )
         from .local import LocalWhisper
 
         return LocalWhisper(
