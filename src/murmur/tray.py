@@ -194,7 +194,7 @@ def run_tray(cfg: config_mod.Config) -> int:
         if hud is None:
             return
         if s is State.RECORDING:
-            hud.show_at_top_center()
+            hud.show_at_bottom_center()
         else:
             hud.hide()
 

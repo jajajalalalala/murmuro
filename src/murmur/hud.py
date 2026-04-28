@@ -1,4 +1,4 @@
-"""Floating recording HUD — small pill at top of screen while you talk.
+"""Floating recording HUD — small pill near the bottom of the screen while you talk.
 
 Shown only during the RECORDING state so you can see at a glance that Murmur
 is listening. Frameless, always-on-top, no Dock entry, and — critically —
@@ -6,6 +6,10 @@ non-activating: the underlying NSPanel never becomes key, so showing it
 doesn't steal focus from whatever text field the user is typing into.
 Without this, push-to-talk would yank focus on every recording, leaving
 auto-paste with no cursor to paste at.
+
+The HUD lives near the bottom of the primary screen. The macOS menu bar
+on top tends to compete visually with the indicator there, and bottom
+placement is closer to where the cursor / dock activity already is.
 """
 from __future__ import annotations
 
@@ -88,7 +92,10 @@ def _apply_nonactivating_panel_style(widget: QWidget) -> None:
 class RecordingHUD(QWidget):
     WIDTH = 200
     HEIGHT = 48
-    TOP_MARGIN = 36
+    # Vertical gap above the screen's bottom edge. Big enough to clear the
+    # Dock when it's pinned to the bottom, small enough to read as "near the
+    # bottom" rather than "floating in the middle".
+    BOTTOM_MARGIN = 96
 
     def __init__(self) -> None:
         super().__init__()
@@ -116,14 +123,14 @@ class RecordingHUD(QWidget):
         self._pulse_phase = (self._pulse_phase + 1) % 20
         self.update()
 
-    def show_at_top_center(self) -> None:
+    def show_at_bottom_center(self) -> None:
         screen = QApplication.primaryScreen()
         if screen is None:
             self.show()
             return
         geo = screen.availableGeometry()
         x = geo.center().x() - self.WIDTH // 2
-        y = geo.top() + self.TOP_MARGIN
+        y = geo.bottom() - self.HEIGHT - self.BOTTOM_MARGIN
         self.move(x, y)
         self._t0 = time.monotonic()
         self._pulse_phase = 0

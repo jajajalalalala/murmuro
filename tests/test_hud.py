@@ -35,7 +35,7 @@ def test_hud_constructs(qapp):
 def test_hud_show_starts_timer(qapp):
     hud = RecordingHUD()
     assert not hud._timer.isActive()
-    hud.show_at_top_center()
+    hud.show_at_bottom_center()
     assert hud._timer.isActive()
     hud.hide()
     assert not hud._timer.isActive()
@@ -43,8 +43,25 @@ def test_hud_show_starts_timer(qapp):
 
 def test_hud_paint_does_not_crash(qapp):
     hud = RecordingHUD()
-    hud.show_at_top_center()
+    hud.show_at_bottom_center()
     # Trigger a paint via the timer's tick handler.
     hud._tick()
     hud.repaint()
+    hud.hide()
+
+
+def test_hud_lands_in_lower_half_of_screen(qapp):
+    """Sanity-check the new bottom-center placement: y should be below
+    the screen's vertical midpoint, not above it."""
+    from PySide6.QtWidgets import QApplication
+    hud = RecordingHUD()
+    hud.show_at_bottom_center()
+    screen = QApplication.primaryScreen()
+    if screen is not None:
+        geo = screen.availableGeometry()
+        midpoint = geo.top() + geo.height() // 2
+        assert hud.y() >= midpoint, (
+            f"HUD at y={hud.y()} should be in lower half of screen "
+            f"(midpoint={midpoint})"
+        )
     hud.hide()
