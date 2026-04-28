@@ -90,6 +90,17 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 - [ ] Per-provider rate hint shown on the Models page
 - [ ] "Test connection" button that pings the chosen endpoint with a 1-second silence clip
 
+### Post-v0.5 daily-use polish (incremental)
+Small fit-and-finish work that landed after v0.5 was tagged, ahead of the v1.0 onboarding work.
+
+- [x] **Persisted hotkey changes** — `HotkeyRecorder` now emits a `value_changed` signal on commit so the new hotkey hits disk even when the user doesn't touch any other field on the page.
+- [x] **Per-row Delete button on Models** — free disk space without leaving the app; guards against deleting the active or in-flight model.
+- [x] **No model selected on fresh install** — `LocalBackendConfig.model` defaults to empty so push-to-talk doesn't silently start a 145 MB download. The Home summary and About page nudge the user to pick one in Models.
+- [x] **Recording HUD anchored to bottom-center** — out of the menu bar / notch's way; replaces the previous top-center placement.
+- [x] **Start/stop beeps** (`sounds.py`) — synthesised 880 Hz / 523 Hz cosine-faded tones dispatched on a daemon thread; audio failures never block the push-to-talk path.
+- [x] **Silent mode** — checkable tray menu item plus a Home checkbox; both drive the same `play_beeps` config field, with the tray tick re-syncing on `config_saved`.
+- [x] **`murmur --uninstall`** — `--yes` skips confirmation, `--dry-run` prints the plan without touching disk; only `models--Systran--faster-whisper-*` caches are removed (other HF models are left alone).
+
 **Done when:** Every key on my keyboard is selectable as a hotkey, the window is readable in dark mode without squinting, transcripts show with timestamps, model downloads show a progress bar, and Groq free-tier works end-to-end.
 
 ---
