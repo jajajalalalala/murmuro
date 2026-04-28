@@ -143,3 +143,114 @@ def test_poll_progress_updates_row_from_cache_size(qapp, monkeypatch):
     monkeypatch.setattr(models_mod, "_dir_size_bytes", lambda _p: target // 2)
     panel._poll_progress()
     assert 45 <= row._progress.value() <= 55
+
+
+# ---- Delete button --------------------------------------------------------
+
+def _seed_fake_cache(monkeypatch, tmp_path, model_id: str):
+    """Point HF_HOME at tmp_path and create the cache dir for ``model_id``.
+
+    Returns the seeded cache path. Mirrors what HuggingFace would create
+    after a real download so ``LocalModel.is_downloaded()`` returns True.
+    """
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    monkeypatch.delenv("HUGGINGFACE_HUB_CACHE", raising=False)
+    cache_dir = tmp_path / f"models--Systran--faster-whisper-{model_id}"
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "model.bin").write_bytes(b"fake-weights")
+    return cache_dir
+
+
+def test_delete_button_hidden_when_not_downloaded(qapp, monkeypatch, tmp_path):
+    """Fresh model with no cache → only Download is visible."""
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    page = ModelsPage(_cfg(model="base"))
+    row = page._local_panel._rows["small"]
+    assert row._action.text() == "Download"
+    # isHidden() reflects the local setVisible flag (vs. isVisible() which
+    # is False until the page is show()n by a real window).
+    assert row._delete.isHidden() is True
+
+
+def test_delete_button_disabled_for_active_model(qapp, monkeypatch, tmp_path):
+    """The active backend can't be deleted from underneath itself."""
+    cache_dir = _seed_fake_cache(monkeypatch, tmp_path, "base")
+    assert cache_dir.exists()
+    page = ModelsPage(_cfg(model="base"))
+    row = page._local_panel._rows["base"]
+    assert row._is_active is True
+    # Button is shown so users see it exists, but disabled with a tooltip.
+    assert row._delete.isHidden() is False
+    assert row._delete.isEnabled() is False
+    assert "Switch to another model" in row._delete.toolTip()
+
+
+def test_delete_button_enabled_for_downloaded_inactive_model(
+    qapp, monkeypatch, tmp_path,
+):
+    _seed_fake_cache(monkeypatch, tmp_path, "small")
+    page = ModelsPage(_cfg(model="base"))  # active is base, small is idle
+    row = page._local_panel._rows["small"]
+    assert row._delete.isHidden() is False
+    assert row._delete.isEnabled() is True
+    assert row._action.text() == "Use"
+
+
+def test_delete_removes_cache_directory(qapp, monkeypatch, tmp_path):
+    """End-to-end: Delete click → confirm → rmtree → row flips back to Download."""
+    from murmur.pages import models as models_mod
+
+    cache_dir = _seed_fake_cache(monkeypatch, tmp_path, "small")
+    monkeypatch.setattr(models_mod, "_confirm_delete", lambda *_a, **_k: True)
+
+    page = ModelsPage(_cfg(model="base"))
+    panel = page._local_panel
+    row = panel._rows["small"]
+    panel._delete_model("small")
+
+    assert not cache_dir.exists(), "cache directory should be gone"
+    assert row._action.text() == "Download"
+    assert row._delete.isHidden() is True
+
+
+def test_delete_cancelled_keeps_files(qapp, monkeypatch, tmp_path):
+    """If the user clicks Cancel, the cache stays intact."""
+    from murmur.pages import models as models_mod
+
+    cache_dir = _seed_fake_cache(monkeypatch, tmp_path, "small")
+    monkeypatch.setattr(models_mod, "_confirm_delete", lambda *_a, **_k: False)
+
+    page = ModelsPage(_cfg(model="base"))
+    page._local_panel._delete_model("small")
+    assert cache_dir.exists()
+
+
+def test_delete_refuses_active_model_even_if_called_directly(
+    qapp, monkeypatch, tmp_path,
+):
+    """Belt-and-braces: the slot itself rejects the active model.
+
+    The UI already disables the button, but we don't want a future
+    refactor that wires this slot from elsewhere to silently nuke the
+    model the user is currently transcribing through.
+    """
+    from murmur.pages import models as models_mod
+
+    cache_dir = _seed_fake_cache(monkeypatch, tmp_path, "base")
+    confirmed = []
+    monkeypatch.setattr(
+        models_mod, "_confirm_delete",
+        lambda *a, **k: (confirmed.append(True), True)[1],
+    )
+
+    page = ModelsPage(_cfg(model="base"))  # base is active
+    page._local_panel._delete_model("base")
+    # Never even prompted for confirmation, files untouched.
+    assert confirmed == []
+    assert cache_dir.exists()
+
+
+def test_delete_model_files_handles_missing_dir(tmp_path):
+    """Helper is a no-op if the path doesn't exist (defensive)."""
+    from murmur.pages.models import _delete_model_files
+    _delete_model_files(tmp_path / "nope")  # must not raise

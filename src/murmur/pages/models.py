@@ -14,6 +14,7 @@ to ``huggingface_hub`` directly. Trade-off accepted for simplicity.
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, QTimer, Signal
@@ -24,7 +25,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QProgressBar,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -83,6 +86,7 @@ class _LocalModelRow(QFrame):
 
     download_requested = Signal(str)   # model_id
     use_requested = Signal(str)        # model_id
+    delete_requested = Signal(str)     # model_id
 
     def __init__(self, model: LocalModel, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -120,10 +124,18 @@ class _LocalModelRow(QFrame):
         self._action = primary_button("")
         self._action.clicked.connect(self._on_action)
 
+        # Secondary "Delete" button: removes the on-disk model files.
+        # Hidden until the model is downloaded; disabled while it's the
+        # active backend (would yank the rug from under a running app).
+        self._delete = QPushButton("Delete")
+        self._delete.clicked.connect(self._on_delete)
+        self._delete.setVisible(False)
+
         row.addLayout(text_col, 1)
         row.addWidget(self._status)
         row.addWidget(self._progress)
         row.addWidget(self._action)
+        row.addWidget(self._delete)
 
         self._is_active = False
         self._is_downloading = False
@@ -170,11 +182,19 @@ class _LocalModelRow(QFrame):
         else:
             self.download_requested.emit(self.model.id)
 
+    def _on_delete(self) -> None:
+        if self._is_downloading or self._is_active:
+            return
+        if not self.model.is_downloaded():
+            return
+        self.delete_requested.emit(self.model.id)
+
     def _refresh(self) -> None:
         downloaded = self.model.is_downloaded()
         if self._is_downloading:
             self._action.setEnabled(False)
             self._action.setText("Downloading…")
+            self._delete.setVisible(False)
             # Show "Fetching…" until the first poll arrives with a real
             # percentage; from then on _set_progress takes over.
             if self._progress.value() == 0:
@@ -187,14 +207,25 @@ class _LocalModelRow(QFrame):
         if not downloaded:
             self._action.setText("Download")
             self._status.setText("Not downloaded")
+            self._delete.setVisible(False)
             return
+        # Downloaded — Delete is visible. It's only disabled for the
+        # currently-active model so the user can't yank it from under
+        # a live transcribe call; switching to another model re-enables.
+        self._delete.setVisible(True)
         if self._is_active:
             self._action.setText("In use")
             self._action.setEnabled(False)
             self._status.setText("Active")
+            self._delete.setEnabled(False)
+            self._delete.setToolTip(
+                "Switch to another model first, then delete this one."
+            )
         else:
             self._action.setText("Use")
             self._status.setText("Downloaded")
+            self._delete.setEnabled(True)
+            self._delete.setToolTip("")
 
 
 # ---- Local panel --------------------------------------------------------------
@@ -228,6 +259,7 @@ class _LocalPanel(QWidget):
             row = _LocalModelRow(model)
             row.download_requested.connect(self._start_download)
             row.use_requested.connect(self._select_model)
+            row.delete_requested.connect(self._delete_model)
             layout.addWidget(row)
             self._rows[model.id] = row
 
@@ -242,6 +274,7 @@ class _LocalPanel(QWidget):
             )
             row = _LocalModelRow(custom)
             row.use_requested.connect(self._select_model)
+            row.delete_requested.connect(self._delete_model)
             layout.addWidget(row)
             self._rows[custom.id] = row
 
@@ -265,6 +298,32 @@ class _LocalPanel(QWidget):
         self._active_model_id = model_id
         self._refresh_active()
         self.model_selected.emit(model_id)
+
+    def _delete_model(self, model_id: str) -> None:
+        """Confirm + remove the on-disk cache for ``model_id``.
+
+        Refuses to delete the active model (the row already disables the
+        button, but we double-check here so an external caller can't slip
+        through). Failures are logged but never raised — the user gets a
+        message-box instead so the page stays usable.
+        """
+        if model_id == self._active_model_id:
+            return
+        row = self._rows.get(model_id)
+        if row is None or not row.model.is_downloaded():
+            return
+        if not _confirm_delete(self, row.model.label):
+            return
+        try:
+            _delete_model_files(row.model.cache_path())
+        except OSError as exc:
+            _log.warning("failed to delete %s: %s", model_id, exc)
+            QMessageBox.warning(
+                self, "Delete failed",
+                f"Could not remove the model files: {exc}",
+            )
+            return
+        row.refresh_download_state()
 
     def _refresh_active(self) -> None:
         for mid, row in self._rows.items():
@@ -528,6 +587,24 @@ def _dir_size_bytes(path: Path) -> int:
     except OSError:
         return total
     return total
+
+
+def _confirm_delete(parent: QWidget, label: str) -> bool:
+    """Modal yes/no dialog before nuking model files. Patchable in tests."""
+    reply = QMessageBox.question(
+        parent,
+        "Delete model?",
+        f"Remove the {label} model from disk? You can re-download it later.",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        QMessageBox.StandardButton.Cancel,
+    )
+    return reply == QMessageBox.StandardButton.Yes
+
+
+def _delete_model_files(path: Path) -> None:
+    """Recursively remove ``path`` if it exists. Raises OSError on failure."""
+    if path.exists():
+        shutil.rmtree(path)
 
 
 __all__ = ["ModelsPage", "find_local_model"]
