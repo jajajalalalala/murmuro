@@ -17,7 +17,7 @@ around any physical key without falling back to "edit the TOML".
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
@@ -158,7 +158,15 @@ def humanize(spec: str) -> str:
 
 
 class HotkeyRecorder(QWidget):
-    """Composite widget: shows current hotkey + a Record button."""
+    """Composite widget: shows current hotkey + a Record button.
+
+    Emits ``value_changed(spec)`` whenever the user records a new combo.
+    Programmatic ``set_value`` is intentionally silent so external config
+    reloads (e.g. user hand-edits the TOML) don't bounce back through
+    the page's persistence path.
+    """
+
+    value_changed = Signal(str)
 
     def __init__(self, initial: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -218,6 +226,7 @@ class HotkeyRecorder(QWidget):
         self._spec = spec
         self._label.setText(humanize(spec))
         self._stop_recording()
+        self.value_changed.emit(spec)
 
     def _token_for(self, event: QKeyEvent) -> tuple[str, bool] | None:
         return resolve_key_event(event)

@@ -106,6 +106,24 @@ def test_recording_a_new_hotkey_persists_via_apply(qapp):
     assert saved[-1].hotkey == "<f9>"
 
 
+def test_recorder_commit_alone_persists_new_hotkey(qapp):
+    """Regression: recording a new hotkey without touching anything else
+    on the page must still write to disk. Previously the page swallowed
+    the recorder's commit, so the change only landed if the user also
+    toggled an unrelated checkbox."""
+    saved: list[config_mod.Config] = []
+    win = MainWindow(
+        _make_cfg(),
+        save_config=saved.append,
+        confirm_restart_fn=_silent_restart,
+    )
+    # Drive the recorder through its real commit path — same code the
+    # keyPressEvent handler runs after a non-modifier keypress.
+    win.shortcuts_page.hotkey_recorder._commit("<f9>")
+    assert saved, "save_config was never called after recorder committed"
+    assert saved[-1].hotkey == "<f9>"
+
+
 def test_blank_hotkey_falls_back_to_existing_value(qapp):
     saved: list[config_mod.Config] = []
     win = MainWindow(

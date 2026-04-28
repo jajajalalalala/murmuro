@@ -41,6 +41,13 @@ class ShortcutsPage(QWidget):
         desc.setProperty("dim", True)
         ptt_layout.addWidget(desc, 1)
         self.hotkey_recorder = HotkeyRecorder(cfg.hotkey)
+        # Re-emit through the page's preferences_changed bus so MainWindow
+        # actually persists the new hotkey. Without this, the recorder
+        # silently updates its own state and the next launch reads the
+        # old value from disk.
+        self.hotkey_recorder.value_changed.connect(
+            lambda _spec: self.preferences_changed.emit()
+        )
         ptt_layout.addWidget(self.hotkey_recorder)
         layout.addWidget(ptt_card)
 
