@@ -169,6 +169,12 @@ def run_tray(cfg: config_mod.Config) -> int:
     menu.addAction(backend_label)
     menu.addSeparator()
 
+    silent_mode_action = QAction("Silent mode (no beeps)")
+    silent_mode_action.setCheckable(True)
+    silent_mode_action.setChecked(not cfg.play_beeps)
+    menu.addAction(silent_mode_action)
+    menu.addSeparator()
+
     open_window_action = QAction("Open Murmur…")
     menu.addAction(open_window_action)
     quit_action = QAction("Quit Murmur")
@@ -251,6 +257,17 @@ def run_tray(cfg: config_mod.Config) -> int:
         backend_label.setText(
             f"Backend: {new_cfg.backend}  ·  Hotkey: {new_cfg.hotkey}"
         )
+        # Sync the tray's silent-mode tick if the change came from the
+        # main-window checkbox (or a hand-edit of the TOML). Block our
+        # own signal so we don't re-enter the toggle handler.
+        silent_mode_action.blockSignals(True)
+        silent_mode_action.setChecked(not new_cfg.play_beeps)
+        silent_mode_action.blockSignals(False)
+
+    def on_silent_mode_toggled(checked: bool) -> None:
+        # Drive the home-page checkbox (single source of truth); its
+        # toggled signal fires preferences_changed → MainWindow persists.
+        main_window.home_page.play_beeps.setChecked(not checked)
 
     def on_tray_activated(reason: QSystemTrayIcon.ActivationReason) -> None:
         # Left click / double click on the tray icon opens the window.
@@ -262,6 +279,7 @@ def run_tray(cfg: config_mod.Config) -> int:
             open_main_window()
 
     main_window.config_saved.connect(on_config_saved)
+    silent_mode_action.toggled.connect(on_silent_mode_toggled)
     open_window_action.triggered.connect(open_main_window)
     quit_action.triggered.connect(quit_app)
     tray.activated.connect(on_tray_activated)
