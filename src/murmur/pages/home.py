@@ -134,6 +134,13 @@ class HomePage(QWidget):
         self.show_hud.toggled.connect(lambda _: self.preferences_changed.emit())
         prefs.addRow("", self.show_hud)
 
+        self.play_beeps = QCheckBox(
+            "Play start/stop beeps (audible cue when recording)"
+        )
+        self.play_beeps.setChecked(cfg.play_beeps)
+        self.play_beeps.toggled.connect(lambda _: self.preferences_changed.emit())
+        prefs.addRow("", self.play_beeps)
+
         self.language_combo = QComboBox()
         for code, label in LANGUAGES:
             self.language_combo.addItem(f"{label} ({code})", userData=code)
@@ -166,16 +173,18 @@ class HomePage(QWidget):
         """Sync the displayed preferences with a fresh Config."""
         self._cfg = cfg
         # Block signals so we don't echo a synthetic preferences_changed.
-        for w in (self.auto_paste, self.show_hud, self.language_combo):
+        widgets = (self.auto_paste, self.show_hud, self.play_beeps, self.language_combo)
+        for w in widgets:
             w.blockSignals(True)
         self.auto_paste.setChecked(cfg.auto_paste)
         self.show_hud.setChecked(cfg.show_hud)
+        self.play_beeps.setChecked(cfg.play_beeps)
         idx = next(
             (i for i, (code, _) in enumerate(LANGUAGES) if code == cfg.language),
             0,
         )
         self.language_combo.setCurrentIndex(idx)
-        for w in (self.auto_paste, self.show_hud, self.language_combo):
+        for w in widgets:
             w.blockSignals(False)
         self._refresh_summary()
 
@@ -196,6 +205,7 @@ class HomePage(QWidget):
         """Return a copy of cfg with this page's preferences applied."""
         cfg.auto_paste = self.auto_paste.isChecked()
         cfg.show_hud = self.show_hud.isChecked()
+        cfg.play_beeps = self.play_beeps.isChecked()
         cfg.language = self.language_combo.currentData() or "auto"
         return cfg
 

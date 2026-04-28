@@ -44,6 +44,10 @@ class Config:
     # confirm whether that's the culprit and gives users a way to dictate
     # without any visible window changing focus.
     show_hud: bool = True
+    # Short audible cue when recording starts/stops. Defaults to on so
+    # the user gets immediate, eyes-free confirmation that the hotkey
+    # registered — independent of the on-screen HUD.
+    play_beeps: bool = True
     local: LocalBackendConfig = field(default_factory=LocalBackendConfig)
     openai: OpenAIBackendConfig = field(default_factory=OpenAIBackendConfig)
 
@@ -66,6 +70,7 @@ def load() -> Config:
         hotkey=data.get("hotkey", "<right_alt>"),
         auto_paste=data.get("auto_paste", True),
         show_hud=data.get("show_hud", True),
+        play_beeps=data.get("play_beeps", True),
         local=LocalBackendConfig(**data.get("local", {})),
         openai=OpenAIBackendConfig(**data.get("openai", {})),
     )

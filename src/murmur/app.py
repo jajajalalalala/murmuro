@@ -15,6 +15,7 @@ from ._logging import get_logger
 from .audio import SAMPLE_RATE, Recorder
 from .hotkey import PushToTalkHotkey
 from .inject import paste_at_cursor, to_clipboard
+from .sounds import play_start, play_stop
 from .transcribe import build as build_transcriber
 
 _log = get_logger("app")
@@ -82,6 +83,8 @@ class MurmurApp:
                 _log.exception("recorder.start() failed")
                 self._on_error(e)
                 return
+            if self.cfg.play_beeps:
+                play_start()
             self._set_state(State.RECORDING)
 
     def _on_release(self) -> None:
@@ -91,6 +94,8 @@ class MurmurApp:
                 return
             pcm = self._recorder.stop()
             _log.info("release: captured %.2fs of audio", pcm.size / SAMPLE_RATE)
+            if self.cfg.play_beeps:
+                play_stop()
             self._set_state(State.TRANSCRIBING)
 
         # Transcribe off the listener thread so we don't block keyboard events.
