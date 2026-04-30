@@ -20,10 +20,19 @@ mode.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton, QWidget
+
+# Repo-rooted path to bundled icon assets. Qt stylesheets accept absolute
+# file URLs in the form ``url(/abs/path/to.png)`` — we resolve the path
+# at import time so any later substitution into the stylesheet has the
+# right string. The same pattern works inside a PyInstaller bundle
+# because ``assets/`` is copied alongside ``src/`` at build time.
+_ASSETS_DIR = Path(__file__).resolve().parents[3] / "assets"
+_CHECK_ICON_URL = (_ASSETS_DIR / "check.png").as_posix()
 
 # ---- Accent ---------------------------------------------------------------
 
@@ -100,11 +109,16 @@ DARK = Palette(
 # ---- Theme detection + application ----------------------------------------
 
 def _detect_palette(app: QApplication) -> Palette:
-    """Pick a palette to match the system theme.
+    """Pick a palette to match the system theme, defaulting to LIGHT.
 
     Qt 6.5 added ``styleHints().colorScheme()``. On older builds we fall
-    back to inspecting the default palette's window lightness. Tests
-    that set ``MURMUR_FORCE_THEME=light|dark`` skip detection entirely.
+    back to inspecting the default palette's window lightness. When
+    neither approach gives a confident answer we now default to LIGHT
+    rather than DARK — the maintainer prefers the brighter look on
+    first launch and can flip to dark via the rail toggle.
+
+    Tests that set ``MURMUR_FORCE_THEME=light|dark`` skip detection
+    entirely.
     """
     import os
     forced = os.environ.get("MURMUR_FORCE_THEME", "").lower()
@@ -125,9 +139,11 @@ def _detect_palette(app: QApplication) -> Palette:
         except Exception:  # noqa: BLE001
             pass
 
-    # Heuristic: look at the existing window-color lightness.
+    # Heuristic fallback: sample the existing window-color lightness.
+    # Bias toward LIGHT (only flip to DARK on a clearly-dark surface)
+    # so an indeterminate Qt build still launches in the brighter mode.
     win = app.palette().color(QPalette.ColorRole.Window)
-    return DARK if win.lightness() < 128 else LIGHT
+    return DARK if win.lightness() < 80 else LIGHT
 
 
 def apply_theme(app: QApplication, palette: Palette | None = None) -> Palette:
@@ -166,11 +182,11 @@ def _stylesheet(p: Palette) -> str:
         background: {p.window};
     }}
 
-    /* Brand header at the top of the left rail */
+    /* Brand header at the top of the left rail. No bottom border —
+       we want the brand area, the nav list, and the About row to read
+       as one flat surface, not three stacked panels. */
     QWidget#brandHeader {{
         background: {p.rail_bg};
-        border-right: 1px solid {p.border};
-        border-bottom: 1px solid {p.border};
     }}
     QLabel#brandText {{
         color: {p.text};
@@ -179,12 +195,29 @@ def _stylesheet(p: Palette) -> str:
         letter-spacing: -0.01em;
     }}
 
-    /* Left-rail navigation */
+    /* Theme toggle at the bottom of the left rail */
+    QPushButton#themeToggle {{
+        background: transparent;
+        color: {p.text_dim};
+        border: 1px solid {p.border};
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 12px;
+        text-align: center;
+    }}
+    QPushButton#themeToggle:hover {{
+        background: {p.surface_alt};
+        color: {p.text};
+        border-color: {p.text_muted};
+    }}
+
+    /* Left-rail navigation. Drop the right border too so the rail
+       blends into the content area as a single quiet surface — Linear
+       / Arc style — rather than reading as a panel with hard edges. */
     QListWidget#nav {{
         background: {p.rail_bg};
         color: {p.rail_text};
         border: none;
-        border-right: 1px solid {p.border};
         padding: 12px 8px;
         outline: 0;
     }}
@@ -435,7 +468,7 @@ def _stylesheet(p: Palette) -> str:
     QCheckBox::indicator:checked {{
         background: {ACCENT};
         border-color: {ACCENT};
-        image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
+        image: url({_CHECK_ICON_URL});
     }}
     QCheckBox::indicator:checked:hover {{
         background: {ACCENT_HOVER};

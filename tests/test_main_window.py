@@ -44,8 +44,10 @@ def _make_cfg() -> config_mod.Config:
 def test_window_constructs_with_four_pages(qapp):
     saved = []
     win = MainWindow(_make_cfg(), save_config=saved.append)
-    # Four nav rows: Home / Shortcuts / Models / About.
-    assert win._nav.count() == 4
+    # Top nav: Home / Shortcuts / Models. About lives at the bottom of
+    # the rail (its own one-item list). Stack still has 4 pages.
+    assert win._nav_top.count() == 3
+    assert win._nav_bottom.count() == 1
     assert win._stack.count() == 4
     assert win.home_page.auto_paste.isChecked() is True
     assert win.shortcuts_page.hotkey_recorder.value() == "<right_alt>"
@@ -173,7 +175,9 @@ def test_home_summary_says_pick_a_model_when_local_is_empty(qapp):
     )
     win = MainWindow(cfg, save_config=lambda _c: None)
     text = win.home_page._summary.text()
-    assert "(none" in text and "Models" in text
+    # Empty model → fallback prompts the user to pick one. The exact
+    # copy ("pick one in Models") is the user-facing string we ship.
+    assert "Models" in text and "pick" in text
 
 
 def test_close_event_hides_instead_of_quitting(qapp):

@@ -11,8 +11,9 @@ from datetime import datetime
 
 import pyperclip
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import (
-    QCheckBox,
+    QApplication,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -32,6 +33,27 @@ from ..ui.theme import (
     card,
     card_title,
 )
+from ..ui.widgets import preference_row
+
+
+def _humanize_local_model(model_id: str) -> str:
+    """Turn a faster-whisper model id into something readable.
+
+    Examples:
+        ``base`` → ``Base``
+        ``tiny.en`` → ``Tiny (English)``
+        ``distil-large-v3`` → ``Distil Large v3``
+        ``large-v3`` → ``Large v3``
+    """
+    name = model_id
+    suffix = ""
+    if name.endswith(".en"):
+        name = name[: -len(".en")]
+        suffix = " (English)"
+    parts = name.replace("_", "-").split("-")
+    pretty = " ".join(p.title() if not p.startswith("v") else p for p in parts)
+    return pretty + suffix
+
 
 _STATE_LABELS = {
     State.IDLE: ("Idle", STATE_IDLE),
@@ -61,6 +83,13 @@ class HomePage(QWidget):
     # Emitted whenever the user flips a toggle or picks a language; the
     # main window persists the change.
     preferences_changed = Signal()
+
+    # Emitted when the user toggles the Dark-mode checkbox. The bool is
+    # the *requested* state (True → switch to dark). Lives on the home
+    # page rather than the rail because the user feedback was that a
+    # rail-level toggle felt strange — preferences belong with other
+    # preferences. Session-scoped (not persisted to Config yet).
+    theme_toggle_requested = Signal(bool)
 
     MAX_TRANSCRIPTS = 5
 
@@ -168,30 +197,57 @@ class HomePage(QWidget):
         return transcripts_card
 
     def _build_preferences_card(self) -> QWidget:
+        """Preferences card: title + four toggle rows + language picker.
+
+        Each toggle row is label-on-left, switch-on-right (per user
+        feedback that the bare checkboxes felt like office software).
+        Each switch keeps its previous attribute name (``auto_paste``,
+        ``show_hud``, ``play_beeps``) so existing tests that drive
+        them via ``setChecked()`` / ``isChecked()`` keep passing —
+        ``ToggleSwitch`` is a drop-in for ``QCheckBox`` at the API
+        level since both subclass ``QAbstractButton``.
+        """
         prefs_card = card()
         layout = QVBoxLayout(prefs_card)
         layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(10)
+        layout.setSpacing(14)
         layout.addWidget(card_title("Preferences"))
 
-        self.auto_paste = QCheckBox(
-            "Auto-paste at cursor (uncheck = clipboard only)",
+        auto_paste_row, self.auto_paste = preference_row(
+            "Auto-paste at cursor",
+            caption="When off, transcribed text only lands on the clipboard.",
+            initial=self._cfg.auto_paste,
+            on_toggled=lambda _: self.preferences_changed.emit(),
         )
-        self.auto_paste.setChecked(self._cfg.auto_paste)
-        self.auto_paste.toggled.connect(lambda _: self.preferences_changed.emit())
-        layout.addWidget(self.auto_paste)
+        layout.addWidget(auto_paste_row)
 
-        self.show_hud = QCheckBox("Show recording HUD")
-        self.show_hud.setChecked(self._cfg.show_hud)
-        self.show_hud.toggled.connect(lambda _: self.preferences_changed.emit())
-        layout.addWidget(self.show_hud)
-
-        self.play_beeps = QCheckBox(
-            "Play start/stop beeps  ·  uncheck for Silent mode",
+        hud_row, self.show_hud = preference_row(
+            "Show recording HUD",
+            caption="A small pill near the bottom of the screen while you talk.",
+            initial=self._cfg.show_hud,
+            on_toggled=lambda _: self.preferences_changed.emit(),
         )
-        self.play_beeps.setChecked(self._cfg.play_beeps)
-        self.play_beeps.toggled.connect(lambda _: self.preferences_changed.emit())
-        layout.addWidget(self.play_beeps)
+        layout.addWidget(hud_row)
+
+        beeps_row, self.play_beeps = preference_row(
+            "Start / stop beeps",
+            caption="Off = Silent mode (no audible cue when recording).",
+            initial=self._cfg.play_beeps,
+            on_toggled=lambda _: self.preferences_changed.emit(),
+        )
+        layout.addWidget(beeps_row)
+
+        # Dark mode — session-scoped so it doesn't ride preferences_changed
+        # (no Config field for theme yet). Initial state mirrors the
+        # currently-active palette so the switch reflects reality on
+        # first paint.
+        dark_row, self.dark_mode = preference_row(
+            "Dark mode",
+            caption="Use the dark palette across the app.",
+            initial=self._is_palette_dark(),
+            on_toggled=lambda checked: self.theme_toggle_requested.emit(checked),
+        )
+        layout.addWidget(dark_row)
 
         # Language: dim caption above the dropdown rather than a
         # colon-style "Language:" label to the left. Reads more like
@@ -213,6 +269,17 @@ class HomePage(QWidget):
         )
         layout.addWidget(self.language_combo)
         return prefs_card
+
+    @staticmethod
+    def _is_palette_dark() -> bool:
+        """Inspect the active QApplication palette to decide whether the
+        Dark-mode switch should start in the on position. Dark surfaces
+        have a window-color lightness below ~128 (out of 255)."""
+        app = QApplication.instance()
+        if app is None:
+            return False
+        color = app.palette().color(QPalette.ColorRole.Window)
+        return color.lightness() < 128
 
     # ------------------------------------------------------------------
     # Public hooks driven by the main window
@@ -283,16 +350,32 @@ class HomePage(QWidget):
             pyperclip.copy(full_text)
 
     def _refresh_summary(self) -> None:
+        """Render the dim sub-line under the Status hero in plain English.
+
+        The previous text was ``Hotkey <fn> · Backend local · Model
+        tiny.en`` — angle-bracket spec syntax + raw provider IDs reads
+        too technical for an end-user UI. This version uses
+        :func:`hotkey_recorder.humanize` for the key spec and friendly
+        labels for the backend / model.
+        """
+        from ..hotkey_recorder import humanize
+
+        hotkey_pretty = humanize(self._cfg.hotkey)
         if self._cfg.backend == "local":
-            model = self._cfg.local.model or "(none — pick one in Models)"
-            backend_label = "local"
+            backend_label = "On-device"
+            model = (
+                _humanize_local_model(self._cfg.local.model)
+                if self._cfg.local.model
+                else "(pick one in Models)"
+            )
         else:
-            # Cloud: surface which provider is active so the user can
-            # tell openai apart from a custom MiniMax/Groq endpoint.
-            backend_label = f"cloud ({self._cfg.cloud_provider_id})"
             from .. import providers as providers_mod
 
             provider = providers_mod.get_cloud(self._cfg.cloud_provider_id)
+            backend_label = (
+                provider.label if provider is not None
+                else self._cfg.cloud_provider_id.title()
+            )
             if self._cfg.cloud_provider_id == "openai":
                 model = self._cfg.openai.model
             elif provider is not None:
@@ -300,8 +383,7 @@ class HomePage(QWidget):
             else:
                 model = "(unknown)"
         self._summary.setText(
-            f"Hotkey {self._cfg.hotkey}  ·  Backend {backend_label}  "
-            f"·  Model {model}",
+            f"{hotkey_pretty}  ·  {backend_label}  ·  {model}",
         )
 
 
