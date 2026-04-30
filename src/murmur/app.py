@@ -160,17 +160,61 @@ class MurmurApp:
             self._hotkey = None
 
     def reload_config(self, cfg: config_mod.Config) -> None:
-        """Apply a new Config: rebind the hotkey, drop the cached transcriber.
+        """Apply a new Config selectively.
 
-        The transcriber re-builds lazily on the next push-to-talk, so a
-        backend/model change becomes visible without an app restart.
+        Pure-toggle changes (auto_paste, show_hud, play_beeps, language)
+        are read at use-time, so they need no rebuild — assigning ``self.cfg``
+        is enough. We only:
+          - drop the cached transcriber when backend / cloud_provider_id /
+            model actually changed (it lazy-rebuilds on next press);
+          - stop and restart the pynput listener when the hotkey spec
+            changed.
+
+        Skipping the listener stop/start on every save eliminates the
+        known pynput macOS instability window — see #43 and the
+        ``restart.py`` docstring. The larger v1.1+ hot-reload story is
+        tracked in #38.
         """
+        old_cfg = self.cfg
         self.cfg = cfg
-        # Re-bind the registry so list_cloud() reflects custom providers
-        # the user just added/removed via the Models page.
+        hotkey_changed = old_cfg.hotkey != cfg.hotkey
+        transcriber_changed = _transcriber_inputs_changed(old_cfg, cfg)
+        _log.debug(
+            "reload_config: hotkey_changed=%s, transcriber_changed=%s",
+            hotkey_changed,
+            transcriber_changed,
+        )
+
+        # Always cheap and idempotent: refresh the runtime registry so
+        # list_cloud() / list_local() reflect any user-added providers.
         providers_mod.reload_from_config(cfg)
-        self._transcriber = None  # force rebuild on next press
-        if self._hotkey is not None:
+
+        if transcriber_changed:
+            # Force a rebuild on the next push-to-talk.
+            self._transcriber = None
+
+        if hotkey_changed and self._hotkey is not None:
             self._hotkey.stop()
             self._hotkey = None
-        self.start()
+            self.start()
+
+
+def _transcriber_inputs_changed(
+    old: config_mod.Config, new: config_mod.Config
+) -> bool:
+    """Return True iff a Config diff implies the cached transcriber is stale.
+
+    Internal control-flow helper — kept distinct from
+    ``restart.restart_reasons`` (which produces user-facing strings) so
+    the two are free to diverge. Mirrors that function's structure: a
+    backend or cloud_provider_id flip invalidates regardless of which
+    model field is set, otherwise we compare the model field that
+    matches the current backend.
+    """
+    if old.backend != new.backend:
+        return True
+    if old.cloud_provider_id != new.cloud_provider_id:
+        return True
+    if old.local.model != new.local.model:
+        return True
+    return old.openai.model != new.openai.model
