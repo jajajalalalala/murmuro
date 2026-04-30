@@ -129,7 +129,12 @@ class AboutPage(QWidget):
     def _describe_model(cfg: config_mod.Config) -> str:
         if cfg.backend == "local":
             return cfg.local.model or "(none selected)"
-        return getattr(cfg, cfg.backend, cfg.openai).model
+        if cfg.cloud_provider_id == "openai":
+            return cfg.openai.model
+        from .. import providers as providers_mod
+
+        provider = providers_mod.get_cloud(cfg.cloud_provider_id)
+        return provider.default_model if provider else "(unknown)"
 
 
 def _platform_label() -> str:

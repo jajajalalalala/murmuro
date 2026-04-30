@@ -37,7 +37,7 @@ def test_initial_provider_matches_config(qapp):
     page = ModelsPage(_cfg(backend="local"))
     assert page.provider_combo.currentData() == "local"
 
-    page = ModelsPage(_cfg(backend="openai"))
+    page = ModelsPage(_cfg(backend="cloud"))
     assert page.provider_combo.currentData() == "openai"
 
 
@@ -55,9 +55,10 @@ def test_apply_local_writes_active_model(qapp):
 
 
 def test_apply_cloud_writes_provider_and_model(qapp):
-    page = ModelsPage(_cfg(backend="openai"))
-    out = page.apply_to_config(_cfg(backend="openai"))
-    assert out.backend == "openai"
+    page = ModelsPage(_cfg(backend="cloud"))
+    out = page.apply_to_config(_cfg(backend="cloud"))
+    assert out.backend == "cloud"
+    assert out.cloud_provider_id == "openai"
     assert out.openai.api_key_env == "OPENAI_API_KEY"
     assert out.openai.model == "whisper-1"
 

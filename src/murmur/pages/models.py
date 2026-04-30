@@ -34,15 +34,9 @@ from PySide6.QtWidgets import (
 )
 
 from .. import config as config_mod
+from .. import providers as providers_mod
 from .._logging import get_logger
-from ..providers import (
-    CLOUD_PROVIDERS,
-    LOCAL_MODELS,
-    CloudProvider,
-    LocalModel,
-    find_cloud_provider,
-    find_local_model,
-)
+from ..providers import CloudProvider, LocalModel, find_local_model
 from ..transcribe.factory import _resolve_local_download_root
 from ..ui.theme import card, primary_button, section_label
 
@@ -275,7 +269,7 @@ class _LocalPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        for model in LOCAL_MODELS:
+        for model in providers_mod.list_local():
             row = _LocalModelRow(model, self._download_root)
             row.download_requested.connect(self._start_download)
             row.use_requested.connect(self._select_model)
@@ -515,7 +509,7 @@ class ModelsPage(QWidget):
         provider_form.setHorizontalSpacing(16)
         self.provider_combo = QComboBox()
         self.provider_combo.addItem("Local (on-device)", userData=self.LOCAL_PROVIDER_ID)
-        for provider in CLOUD_PROVIDERS:
+        for provider in providers_mod.list_cloud():
             self.provider_combo.addItem(provider.label, userData=provider.id)
         self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
         provider_form.addRow("Provider:", self.provider_combo)
@@ -533,14 +527,14 @@ class ModelsPage(QWidget):
         self._local_panel.model_selected.connect(lambda _: self.preferences_changed.emit())
         self._cloud_panel.config_dirty.connect(self.preferences_changed.emit)
 
-        self._select_provider_in_ui(cfg.backend)
+        self._select_provider_in_ui(cfg)
 
     # ------------------------------------------------------------------
 
     def set_config(self, cfg: config_mod.Config) -> None:
         self._cfg = cfg
         self._local_panel.set_config(cfg)
-        self._select_provider_in_ui(cfg.backend)
+        self._select_provider_in_ui(cfg)
 
     def apply_to_config(self, cfg: config_mod.Config) -> config_mod.Config:
         provider_id = self.provider_combo.currentData()
@@ -548,7 +542,8 @@ class ModelsPage(QWidget):
             cfg.backend = "local"
             cfg.local.model = self._local_panel.active_model_id
         else:
-            cfg.backend = provider_id
+            cfg.backend = "cloud"
+            cfg.cloud_provider_id = provider_id
             cfg = self._cloud_panel.apply_to_config(cfg)
         return cfg
 
@@ -558,11 +553,23 @@ class ModelsPage(QWidget):
         self._sync_stack()
         self.preferences_changed.emit()
 
-    def _select_provider_in_ui(self, backend: str) -> None:
+    def _select_provider_in_ui(self, cfg: config_mod.Config) -> None:
+        # Translate the (backend, cloud_provider_id) pair into a single
+        # dropdown id: local stays "local"; cloud uses the provider id.
+        # Unknown backend strings (e.g. a hand-edited TOML pointing at a
+        # provider that's no longer registered) fall through to local
+        # rather than silently picking a wrong cloud row — same shape
+        # the pre-#17 code had for unknown providers.
+        if cfg.backend == "local":
+            target = self.LOCAL_PROVIDER_ID
+        elif cfg.backend == "cloud":
+            target = cfg.cloud_provider_id
+        else:
+            target = None
         # Rebuild the dropdown selection without firing changed signals.
         self.provider_combo.blockSignals(True)
         for i in range(self.provider_combo.count()):
-            if self.provider_combo.itemData(i) == backend:
+            if self.provider_combo.itemData(i) == target:
                 self.provider_combo.setCurrentIndex(i)
                 break
         else:
@@ -577,7 +584,7 @@ class ModelsPage(QWidget):
         if provider_id == self.LOCAL_PROVIDER_ID:
             self._stack.setCurrentWidget(self._local_panel)
             return
-        provider = find_cloud_provider(provider_id)
+        provider = providers_mod.get_cloud(provider_id)
         if provider is None:
             self._stack.setCurrentWidget(self._local_panel)
             return

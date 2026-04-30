@@ -134,3 +134,108 @@ def test_build_still_refuses_empty_model():
 
     with pytest.raises(RuntimeError, match="No local model selected"):
         factory_mod.build(cfg)
+
+
+# ---- Cloud-backend dispatch through the provider registry (#17) -------------
+
+
+def test_legacy_openai_backend_still_builds(monkeypatch):
+    """Pre-#17 ``backend = "openai"`` keeps producing an OpenAI
+    transcriber pointed at api.openai.com without any TOML edits."""
+    cfg = config_mod.Config(
+        backend="openai",
+        openai=config_mod.OpenAIBackendConfig(
+            api_key_env="OPENAI_API_KEY", model="whisper-1"
+        ),
+    )
+    monkeypatch.setattr(
+        "murmur.secrets.get",
+        lambda name, env_var=None: "sk-from-keychain",
+    )
+    from murmur.transcribe import factory as factory_mod
+
+    transcriber = factory_mod.build(cfg)
+    assert transcriber.base_url == "https://api.openai.com/v1"
+    assert transcriber.api_key == "sk-from-keychain"
+    assert transcriber.model == "whisper-1"
+
+
+def test_cloud_backend_with_openai_provider_id_matches_legacy(monkeypatch):
+    """Post-migration shape (backend=cloud, cloud_provider_id=openai)
+    produces the same transcriber the legacy form did — proving the
+    registry-driven dispatch is a drop-in for the hardcoded literal."""
+    cfg = config_mod.Config(
+        backend="cloud",
+        cloud_provider_id="openai",
+        openai=config_mod.OpenAIBackendConfig(
+            api_key_env="OPENAI_API_KEY", model="whisper-1"
+        ),
+    )
+    monkeypatch.setattr(
+        "murmur.secrets.get",
+        lambda name, env_var=None: "sk-from-keychain",
+    )
+    from murmur.transcribe import factory as factory_mod
+
+    transcriber = factory_mod.build(cfg)
+    assert transcriber.base_url == "https://api.openai.com/v1"
+    assert transcriber.api_key == "sk-from-keychain"
+    assert transcriber.model == "whisper-1"
+
+
+def test_cloud_backend_dispatches_to_custom_provider(monkeypatch, tmp_path):
+    """A user-added custom provider wired into cfg.cloud_provider_id is
+    looked up via the registry and produces an OpenAICompatible with
+    that provider's base_url + model."""
+    monkeypatch.setattr(
+        config_mod, "config_path", lambda: tmp_path / "config.toml",
+    )
+    from murmur import providers as providers_mod
+
+    cfg = config_mod.load()
+    providers_mod.reload_from_config(cfg)
+    providers_mod.register(
+        providers_mod.CloudProvider(
+            id="my-minimax",
+            label="My MiniMax",
+            base_url="https://api.minimax.io/v1",
+            default_model="whisper-large",
+            models=("whisper-large",),
+            api_key_env="MY_MINIMAX_API_KEY",
+            rate_hint="",
+            curated=False,
+        )
+    )
+    cfg.backend = "cloud"
+    cfg.cloud_provider_id = "my-minimax"
+
+    captured = {}
+
+    def fake_get(name, env_var=None):
+        captured["name"] = name
+        captured["env_var"] = env_var
+        return "sk-minimax-key"
+
+    monkeypatch.setattr("murmur.secrets.get", fake_get)
+    from murmur.transcribe import factory as factory_mod
+
+    transcriber = factory_mod.build(cfg)
+    assert transcriber.base_url == "https://api.minimax.io/v1"
+    assert transcriber.model == "whisper-large"
+    assert transcriber.api_key == "sk-minimax-key"
+    # The factory looked up the key under the provider id, with the
+    # provider's configured env var name as the fallback.
+    assert captured["name"] == "my-minimax"
+    assert captured["env_var"] == "MY_MINIMAX_API_KEY"
+
+
+def test_cloud_backend_unknown_provider_raises(monkeypatch):
+    cfg = config_mod.Config(backend="cloud", cloud_provider_id="ghost")
+    monkeypatch.setattr(
+        "murmur.secrets.get",
+        lambda name, env_var=None: "sk-",
+    )
+    from murmur.transcribe import factory as factory_mod
+
+    with pytest.raises(ValueError, match="Unknown cloud provider"):
+        factory_mod.build(cfg)

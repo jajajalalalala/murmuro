@@ -8,12 +8,28 @@ def test_config_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(config_mod, "config_path", lambda: tmp_path / "config.toml")
     cfg = config_mod.load()
     assert cfg.backend == "local"
-    cfg.backend = "openai"
+    cfg.backend = "cloud"
+    cfg.cloud_provider_id = "openai"
     cfg.language = "en"
     config_mod.save(cfg)
     cfg2 = config_mod.load()
-    assert cfg2.backend == "openai"
+    assert cfg2.backend == "cloud"
+    assert cfg2.cloud_provider_id == "openai"
     assert cfg2.language == "en"
+
+
+def test_legacy_openai_backend_is_migrated_to_cloud(tmp_path, monkeypatch):
+    """Pre-#17 configs stored ``backend = "openai"`` directly. Loading
+    them should transparently produce the new (cloud, openai) shape so
+    upgraders don't have to hand-edit their TOML."""
+    monkeypatch.setattr(config_mod, "config_path", lambda: tmp_path / "config.toml")
+    # Hand-write the legacy shape.
+    legacy = b'backend = "openai"\nlanguage = "en"\n'
+    (tmp_path / "config.toml").write_bytes(legacy)
+    cfg = config_mod.load()
+    assert cfg.backend == "cloud"
+    assert cfg.cloud_provider_id == "openai"
+    assert cfg.language == "en"
 
 
 def test_fresh_install_has_no_local_model_selected():

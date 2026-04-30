@@ -36,8 +36,35 @@ class OpenAIBackendConfig:
 
 
 @dataclass
+class CustomCloudProvider:
+    """User-added OpenAI-compatible cloud provider.
+
+    Persisted under ``[[custom_cloud]]`` in ``config.toml``. The API key
+    is **never** stored here — it lives in the OS keychain under
+    ``provider_id``. See ADR-0001 and ``murmur.secrets``.
+
+    ``api_key_env`` defaults to ``<PROVIDER_ID>_API_KEY`` (matching
+    ``murmur.secrets``'s default rule), but can be overridden so users
+    with a non-conforming env var name (e.g. someone who already exports
+    ``MINIMAX_TOKEN``) can keep using it.
+    """
+
+    provider_id: str
+    display_name: str
+    base_url: str
+    model: str
+    api_key_env: str = ""
+
+
+@dataclass
 class Config:
+    # Two-axis backend selection:
+    #   ``backend`` is "local" or "cloud" (was "openai" before #17 — see
+    #   ``load`` for the transparent migration). When "cloud",
+    #   ``cloud_provider_id`` picks which entry from
+    #   ``providers.list_cloud()`` to dispatch to.
     backend: str = "local"
+    cloud_provider_id: str = "openai"
     language: str = "auto"
     hotkey: str = "<right_alt>"
     auto_paste: bool = True
@@ -55,6 +82,9 @@ class Config:
     play_beeps: bool = True
     local: LocalBackendConfig = field(default_factory=LocalBackendConfig)
     openai: OpenAIBackendConfig = field(default_factory=OpenAIBackendConfig)
+    # User-added cloud providers (curated entries live in
+    # ``providers._CURATED_CLOUD`` and are not duplicated here).
+    custom_cloud: list[CustomCloudProvider] = field(default_factory=list)
 
 
 def config_path() -> Path:
@@ -69,8 +99,17 @@ def load() -> Config:
         return cfg
     with path.open("rb") as f:
         data = tomllib.load(f)
+    backend = data.get("backend", "local")
+    cloud_provider_id = data.get("cloud_provider_id", "openai")
+    # Backwards compat: pre-#17 configs used backend = "openai" to mean
+    # "the OpenAI cloud provider". Translate transparently so existing
+    # users keep working without editing their TOML by hand.
+    if backend == "openai":
+        backend = "cloud"
+        cloud_provider_id = "openai"
     cfg = Config(
-        backend=data.get("backend", "local"),
+        backend=backend,
+        cloud_provider_id=cloud_provider_id,
         language=data.get("language", "auto"),
         hotkey=data.get("hotkey", "<right_alt>"),
         auto_paste=data.get("auto_paste", True),
@@ -78,6 +117,9 @@ def load() -> Config:
         play_beeps=data.get("play_beeps", True),
         local=LocalBackendConfig(**data.get("local", {})),
         openai=OpenAIBackendConfig(**data.get("openai", {})),
+        custom_cloud=[
+            CustomCloudProvider(**c) for c in data.get("custom_cloud", [])
+        ],
     )
     return cfg
 

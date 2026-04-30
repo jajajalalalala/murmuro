@@ -76,17 +76,32 @@ def restart_reasons(old: object, new: object) -> list[str]:
     Kept here (and not in main_window) so the logic is unit-testable
     without importing Qt widgets.
     """
+    def _norm_backend(b: object) -> object:
+        # Pre-#17 callers (and stored configs that haven't been loaded
+        # through ``config.load()`` yet) may carry "openai" — treat it
+        # as the new "cloud" so equality comparisons line up either way.
+        return "cloud" if b == "openai" else b
+
     reasons: list[str] = []
-    old_backend = getattr(old, "backend", None)
-    new_backend = getattr(new, "backend", None)
-    if old_backend != new_backend:
+    old_backend = _norm_backend(getattr(old, "backend", None))
+    new_backend = _norm_backend(getattr(new, "backend", None))
+    old_provider = getattr(old, "cloud_provider_id", None)
+    new_provider = getattr(new, "cloud_provider_id", None)
+    # A provider switch counts as a backend switch even if both sides
+    # report cfg.backend == "cloud" — the user is moving from openai →
+    # groq → custom, which still warrants a clean restart.
+    if old_backend != new_backend or (
+        old_backend == "cloud"
+        and new_backend == "cloud"
+        and old_provider != new_provider
+    ):
         reasons.append("the model provider change")
     elif (
         old_backend == "local"
         and getattr(getattr(old, "local", None), "model", None)
         != getattr(getattr(new, "local", None), "model", None)
     ) or (
-        old_backend == "openai"
+        old_backend == "cloud"
         and getattr(getattr(old, "openai", None), "model", None)
         != getattr(getattr(new, "openai", None), "model", None)
     ):

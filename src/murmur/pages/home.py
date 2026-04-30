@@ -221,11 +221,22 @@ class HomePage(QWidget):
     def _refresh_summary(self) -> None:
         if self._cfg.backend == "local":
             model = self._cfg.local.model or "(none — pick one in Models)"
+            backend_label = "local"
         else:
-            backend_cfg = getattr(self._cfg, self._cfg.backend, self._cfg.openai)
-            model = backend_cfg.model
+            # Cloud: surface which provider is active so the user can
+            # tell openai apart from a custom MiniMax/Groq endpoint.
+            backend_label = f"cloud ({self._cfg.cloud_provider_id})"
+            from .. import providers as providers_mod
+
+            provider = providers_mod.get_cloud(self._cfg.cloud_provider_id)
+            if self._cfg.cloud_provider_id == "openai":
+                model = self._cfg.openai.model
+            elif provider is not None:
+                model = provider.default_model
+            else:
+                model = "(unknown)"
         self._summary.setText(
-            f"Hotkey {self._cfg.hotkey}  ·  Backend {self._cfg.backend}  "
+            f"Hotkey {self._cfg.hotkey}  ·  Backend {backend_label}  "
             f"·  Model {model}"
         )
 

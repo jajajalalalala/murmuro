@@ -62,26 +62,54 @@ def build(cfg: cfg_mod.Config) -> Transcriber:
             compute_type=cfg.local.compute_type,
             download_root=_resolve_local_download_root(cfg),
         )
+    # Pre-#17 callers may still hand us cfg.backend == "openai" — config.load()
+    # rewrites the on-disk value, but tests and direct construction don't go
+    # through that. Treat the legacy string as an alias here so both paths
+    # build the same OpenAI transcriber.
     if cfg.backend == "openai":
-        from .. import secrets
+        cfg.backend = "cloud"
+        cfg.cloud_provider_id = "openai"
+    if cfg.backend == "cloud":
+        from .. import providers, secrets
         from .openai_compatible import OpenAICompatible
+
+        # Make sure the registry reflects whatever's in cfg.custom_cloud
+        # before we look up the provider. ``app.py`` calls this on
+        # startup, but the factory is sometimes invoked directly from
+        # tests / the CLI, so we re-bind defensively. Idempotent.
+        providers.reload_from_config(cfg)
+        provider = providers.get_cloud(cfg.cloud_provider_id)
+        if provider is None:
+            raise ValueError(
+                f"Unknown cloud provider: {cfg.cloud_provider_id!r} — "
+                "check the Models page."
+            )
 
         # Prefer the keychain entry written by the Models page; fall back
         # to the configured env var name for users who set up Murmur
         # before keychain storage existed (or who use direnv / 1Password
         # CLI). See `docs/adr/0001-api-key-storage.md`.
-        api_key = secrets.get("openai", env_var=cfg.openai.api_key_env)
+        env_var = (
+            cfg.openai.api_key_env
+            if provider.id == "openai"
+            else provider.api_key_env
+        )
+        api_key = secrets.get(provider.id, env_var=env_var)
         if not api_key:
             raise RuntimeError(
-                "OpenAI backend selected but no API key found. Add one on the Models "
-                f"page or set the {cfg.openai.api_key_env} env var."
+                f"{provider.label} selected but no API key found. Add one on "
+                f"the Models page or set the {env_var} env var."
             )
-        # Hardcoded for now — registry-driven dispatch (Groq, DeepSeek,
-        # custom endpoints) lands in #17 / #19 / #21. ADR-0002 covers the
-        # rationale for collapsing all cloud backends onto this one class.
+        # Per-provider model selection: openai keeps its existing
+        # ``cfg.openai.model`` so legacy TOMLs round-trip; user-added
+        # providers use the model captured in their custom entry.
+        if provider.id == "openai":
+            model = cfg.openai.model or provider.default_model
+        else:
+            model = provider.default_model
         return OpenAICompatible(
-            base_url="https://api.openai.com/v1",
+            base_url=provider.base_url,
             api_key=api_key,
-            model=cfg.openai.model,
+            model=model,
         )
     raise ValueError(f"Unknown backend: {cfg.backend!r}")

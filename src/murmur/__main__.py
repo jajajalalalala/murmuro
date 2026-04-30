@@ -72,7 +72,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="murmur", description="Press a key, speak, get text.")
     parser.add_argument("--version", action="version", version=f"murmur {__version__}")
     parser.add_argument("--cli", action="store_true", help="Run in terminal CLI mode (no tray).")
-    parser.add_argument("--backend", choices=["local", "openai"], help="Override config backend.")
+    parser.add_argument(
+        "--backend",
+        choices=["local", "cloud", "openai"],
+        help="Override config backend. ``openai`` is accepted as a legacy alias for "
+             "``cloud`` (with cloud_provider_id=openai).",
+    )
     parser.add_argument("--language", help="Override language (ISO 639-1, or 'auto').")
     parser.add_argument("--show-config", action="store_true", help="Print config path and exit.")
     parser.add_argument(
@@ -109,7 +114,14 @@ def main() -> int:
 
     cfg = config_mod.load()
     if args.backend:
-        cfg.backend = args.backend
+        # Legacy ``--backend openai`` keeps working: collapse it to the
+        # post-#17 (backend=cloud, cloud_provider_id=openai) shape so the
+        # factory has a single dispatch path.
+        if args.backend == "openai":
+            cfg.backend = "cloud"
+            cfg.cloud_provider_id = "openai"
+        else:
+            cfg.backend = args.backend
     if args.language:
         cfg.language = args.language
 

@@ -11,6 +11,7 @@ from collections.abc import Callable
 from enum import Enum
 
 from . import config as config_mod
+from . import providers as providers_mod
 from ._logging import get_logger
 from .audio import SAMPLE_RATE, Recorder
 from .hotkey import PushToTalkHotkey
@@ -39,6 +40,9 @@ class MurmurApp:
         on_paste_request: Callable[[str], None] | None = None,
     ) -> None:
         self.cfg = cfg
+        # Bind the runtime registry to this Config so list_cloud()
+        # surfaces user-added providers from the moment the app starts.
+        providers_mod.reload_from_config(cfg)
         self._on_state_change = on_state_change or (lambda _s: None)
         self._on_result = on_result or (lambda _t: None)
         self._on_error = on_error or (lambda _e: None)
@@ -162,6 +166,9 @@ class MurmurApp:
         backend/model change becomes visible without an app restart.
         """
         self.cfg = cfg
+        # Re-bind the registry so list_cloud() reflects custom providers
+        # the user just added/removed via the Models page.
+        providers_mod.reload_from_config(cfg)
         self._transcriber = None  # force rebuild on next press
         if self._hotkey is not None:
             self._hotkey.stop()
