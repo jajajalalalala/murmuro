@@ -20,10 +20,19 @@ mode.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton, QWidget
+
+# Repo-rooted path to bundled icon assets. Qt stylesheets accept absolute
+# file URLs in the form ``url(/abs/path/to.png)`` — we resolve the path
+# at import time so any later substitution into the stylesheet has the
+# right string. The same pattern works inside a PyInstaller bundle
+# because ``assets/`` is copied alongside ``src/`` at build time.
+_ASSETS_DIR = Path(__file__).resolve().parents[3] / "assets"
+_CHECK_ICON_URL = (_ASSETS_DIR / "check.png").as_posix()
 
 # ---- Accent ---------------------------------------------------------------
 
@@ -458,7 +467,7 @@ def _stylesheet(p: Palette) -> str:
     QCheckBox::indicator:checked {{
         background: {ACCENT};
         border-color: {ACCENT};
-        image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
+        image: url({_CHECK_ICON_URL});
     }}
     QCheckBox::indicator:checked:hover {{
         background: {ACCENT_HOVER};

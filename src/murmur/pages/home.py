@@ -11,8 +11,9 @@ from datetime import datetime
 
 import pyperclip
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import (
-    QCheckBox,
+    QApplication,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -32,6 +33,7 @@ from ..ui.theme import (
     card,
     card_title,
 )
+from ..ui.widgets import preference_row
 
 _STATE_LABELS = {
     State.IDLE: ("Idle", STATE_IDLE),
@@ -61,6 +63,13 @@ class HomePage(QWidget):
     # Emitted whenever the user flips a toggle or picks a language; the
     # main window persists the change.
     preferences_changed = Signal()
+
+    # Emitted when the user toggles the Dark-mode checkbox. The bool is
+    # the *requested* state (True → switch to dark). Lives on the home
+    # page rather than the rail because the user feedback was that a
+    # rail-level toggle felt strange — preferences belong with other
+    # preferences. Session-scoped (not persisted to Config yet).
+    theme_toggle_requested = Signal(bool)
 
     MAX_TRANSCRIPTS = 5
 
@@ -168,30 +177,57 @@ class HomePage(QWidget):
         return transcripts_card
 
     def _build_preferences_card(self) -> QWidget:
+        """Preferences card: title + four toggle rows + language picker.
+
+        Each toggle row is label-on-left, switch-on-right (per user
+        feedback that the bare checkboxes felt like office software).
+        Each switch keeps its previous attribute name (``auto_paste``,
+        ``show_hud``, ``play_beeps``) so existing tests that drive
+        them via ``setChecked()`` / ``isChecked()`` keep passing —
+        ``ToggleSwitch`` is a drop-in for ``QCheckBox`` at the API
+        level since both subclass ``QAbstractButton``.
+        """
         prefs_card = card()
         layout = QVBoxLayout(prefs_card)
         layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(10)
+        layout.setSpacing(14)
         layout.addWidget(card_title("Preferences"))
 
-        self.auto_paste = QCheckBox(
-            "Auto-paste at cursor (uncheck = clipboard only)",
+        auto_paste_row, self.auto_paste = preference_row(
+            "Auto-paste at cursor",
+            caption="When off, transcribed text only lands on the clipboard.",
+            initial=self._cfg.auto_paste,
+            on_toggled=lambda _: self.preferences_changed.emit(),
         )
-        self.auto_paste.setChecked(self._cfg.auto_paste)
-        self.auto_paste.toggled.connect(lambda _: self.preferences_changed.emit())
-        layout.addWidget(self.auto_paste)
+        layout.addWidget(auto_paste_row)
 
-        self.show_hud = QCheckBox("Show recording HUD")
-        self.show_hud.setChecked(self._cfg.show_hud)
-        self.show_hud.toggled.connect(lambda _: self.preferences_changed.emit())
-        layout.addWidget(self.show_hud)
-
-        self.play_beeps = QCheckBox(
-            "Play start/stop beeps  ·  uncheck for Silent mode",
+        hud_row, self.show_hud = preference_row(
+            "Show recording HUD",
+            caption="A small pill near the bottom of the screen while you talk.",
+            initial=self._cfg.show_hud,
+            on_toggled=lambda _: self.preferences_changed.emit(),
         )
-        self.play_beeps.setChecked(self._cfg.play_beeps)
-        self.play_beeps.toggled.connect(lambda _: self.preferences_changed.emit())
-        layout.addWidget(self.play_beeps)
+        layout.addWidget(hud_row)
+
+        beeps_row, self.play_beeps = preference_row(
+            "Start / stop beeps",
+            caption="Off = Silent mode (no audible cue when recording).",
+            initial=self._cfg.play_beeps,
+            on_toggled=lambda _: self.preferences_changed.emit(),
+        )
+        layout.addWidget(beeps_row)
+
+        # Dark mode — session-scoped so it doesn't ride preferences_changed
+        # (no Config field for theme yet). Initial state mirrors the
+        # currently-active palette so the switch reflects reality on
+        # first paint.
+        dark_row, self.dark_mode = preference_row(
+            "Dark mode",
+            caption="Use the dark palette across the app.",
+            initial=self._is_palette_dark(),
+            on_toggled=lambda checked: self.theme_toggle_requested.emit(checked),
+        )
+        layout.addWidget(dark_row)
 
         # Language: dim caption above the dropdown rather than a
         # colon-style "Language:" label to the left. Reads more like
@@ -213,6 +249,17 @@ class HomePage(QWidget):
         )
         layout.addWidget(self.language_combo)
         return prefs_card
+
+    @staticmethod
+    def _is_palette_dark() -> bool:
+        """Inspect the active QApplication palette to decide whether the
+        Dark-mode switch should start in the on position. Dark surfaces
+        have a window-color lightness below ~128 (out of 255)."""
+        app = QApplication.instance()
+        if app is None:
+            return False
+        color = app.palette().color(QPalette.ColorRole.Window)
+        return color.lightness() < 128
 
     # ------------------------------------------------------------------
     # Public hooks driven by the main window

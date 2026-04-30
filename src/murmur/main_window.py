@@ -34,7 +34,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
-    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -152,6 +151,11 @@ class MainWindow(QMainWindow):
         for page in (self.home_page, self.shortcuts_page, self.models_page):
             page.preferences_changed.connect(self._persist_changes)
 
+        # Theme toggle lives on the Home page now (not the rail) — it's
+        # really a preference, not chrome. The page emits a request,
+        # MainWindow re-applies the global stylesheet.
+        self.home_page.theme_toggle_requested.connect(self.set_theme)
+
     # ----- Construction helpers -------------------------------------------
 
     def _build_brand_header(self) -> QWidget:
@@ -194,33 +198,17 @@ class MainWindow(QMainWindow):
         return header
 
     def _build_bottom_rail_section(self) -> QWidget:
-        """Theme toggle + About row at the bottom of the left rail.
+        """About row flush at the bottom of the left rail.
 
-        Theme toggle sits above About so About is flush at the very
-        bottom of the rail (per user feedback — "About should be at the
-        bottom of the bar"). The About item lives in its own
-        QListWidget so it inherits the same selected-row styling as the
-        top nav. We connect its selection to the unified nav slot so
-        picking About clears the top-nav highlight and the stack flips
-        to page 3.
+        The previous version mixed in a theme toggle above About; that
+        landed in Home → Preferences instead (it's a preference, not
+        chrome — see ``HomePage._build_preferences_card``).
+
+        About lives in its own QListWidget so it inherits the same
+        selected-row styling as the top nav. We connect its selection
+        to the unified nav slot so picking About clears the top-nav
+        highlight and the stack flips to page 3.
         """
-        section = QWidget()
-        layout = QVBoxLayout(section)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        # Theme toggle — sits above About so About lands flush at the
-        # very bottom of the rail.
-        toggle_row = QHBoxLayout()
-        toggle_row.setContentsMargins(12, 8, 12, 8)
-        toggle_row.setSpacing(0)
-        self._theme_toggle = QPushButton()
-        self._theme_toggle.setObjectName("themeToggle")
-        self._theme_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._theme_toggle.clicked.connect(self._toggle_theme)
-        toggle_row.addWidget(self._theme_toggle, 1)
-        layout.addLayout(toggle_row)
-
         self._nav_bottom = QListWidget()
         self._nav_bottom.setObjectName("nav")
         self._nav_bottom.addItem(QListWidgetItem("About"))
@@ -243,11 +231,7 @@ class MainWindow(QMainWindow):
         self._nav_bottom.itemSelectionChanged.connect(
             self._on_bottom_nav_changed,
         )
-        layout.addWidget(self._nav_bottom)
-
-        # Initial label depends on the active palette.
-        self._refresh_theme_toggle_label()
-        return section
+        return self._nav_bottom
 
     # ----- Navigation coordination ----------------------------------------
 
@@ -272,29 +256,23 @@ class MainWindow(QMainWindow):
         self._nav_top.setCurrentRow(-1)
         self._nav_top.blockSignals(False)
 
-    # ----- Theme toggle ---------------------------------------------------
+    # ----- Theme handling -------------------------------------------------
 
-    def _toggle_theme(self) -> None:
-        """Flip between LIGHT and DARK at runtime.
+    def set_theme(self, want_dark: bool) -> None:
+        """Apply LIGHT or DARK at runtime.
 
         Re-applies the global stylesheet via :func:`apply_theme` so every
         widget picks up the new palette without having to be reconstructed.
-        Choice is session-scoped — not persisted to config (that's a
-        separate follow-up so the toggle works fast and in isolation)."""
-        new_palette = DARK if self._active_palette is LIGHT else LIGHT
+        Driven by the Home → Preferences ``Dark mode`` checkbox (signal
+        ``HomePage.theme_toggle_requested``). Session-scoped — not
+        persisted to config (separate follow-up)."""
+        new_palette = DARK if want_dark else LIGHT
+        if new_palette is self._active_palette:
+            return
         app = QApplication.instance()
         if app is not None:
             apply_theme(app, new_palette)
         self._active_palette = new_palette
-        self._refresh_theme_toggle_label()
-
-    def _refresh_theme_toggle_label(self) -> None:
-        """Show the *target* state's glyph + label so the affordance reads
-        as 'click to switch to X' rather than 'currently in Y'."""
-        if self._active_palette is LIGHT:
-            self._theme_toggle.setText("🌙  Dark")
-        else:
-            self._theme_toggle.setText("☀  Light")
 
     # ----- macOS title bar ------------------------------------------------
 
