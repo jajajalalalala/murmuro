@@ -212,22 +212,19 @@ class MainWindow(QMainWindow):
         return header
 
     def _refresh_brand_glyph(self) -> None:
-        """Pick the wordmark variant that contrasts with the active
-        palette: dark glyph for LIGHT, light glyph for DARK.
+        """Show the orange app icon next to the 'Murmur' wordmark.
 
-        Re-runnable so :meth:`set_theme` can flip the asset alongside
-        the stylesheet.
+        We tried a theme-aware monochrome silhouette here briefly; the
+        maintainer prefers the colorful app icon as the rail mark for
+        brand recognition. The silhouette stays in the assets folder
+        for the tray to use (see ``tray.py`` — black μ on transparent
+        for the menu-bar idle state).
         """
         if not hasattr(self, "_brand_glyph"):
             return
-        path = (
-            _WORDMARK_DARK_PATH
-            if self._active_palette is LIGHT
-            else _WORDMARK_LIGHT_PATH
-        )
-        if not path.exists():
+        if not _ICON_PATH.exists():
             return
-        pixmap = QPixmap(str(path)).scaled(
+        pixmap = QPixmap(str(_ICON_PATH)).scaled(
             24, 24,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,

@@ -66,6 +66,7 @@ echo "[build.sh] running PyInstaller..."
     --icon "assets/icon.icns" \
     --osx-bundle-identifier "com.bonian.murmur" \
     --paths "src" \
+    --add-data "assets:assets" \
     --collect-submodules "murmur" \
     --collect-submodules "faster_whisper" \
     --collect-data "faster_whisper" \
