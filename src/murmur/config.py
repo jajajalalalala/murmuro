@@ -1,7 +1,6 @@
 """User configuration loaded from a TOML file in the platform config dir."""
 from __future__ import annotations
 
-import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -82,7 +81,3 @@ def save(cfg: Config) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("wb") as f:
         tomli_w.dump(asdict(cfg), f)
-
-
-def openai_api_key(cfg: Config) -> str | None:
-    return os.environ.get(cfg.openai.api_key_env)
