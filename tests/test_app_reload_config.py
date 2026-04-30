@@ -2,10 +2,10 @@
 
 Pure toggle saves (auto_paste, show_hud, play_beeps, language) must not
 restart the pynput listener and must not drop the cached transcriber —
-this is what avoids the known pynput stop/start instability on macOS
-(see #43 and the ``restart.py`` docstring). Hotkey changes still trigger
+this avoids unnecessary churn on every save. Hotkey changes still trigger
 a listener rebind; backend / cloud_provider_id / model changes still
-drop the transcriber.
+drop the transcriber. Together these cover the full reload story (#38) —
+no axis triggers a process relaunch.
 """
 from __future__ import annotations
 
