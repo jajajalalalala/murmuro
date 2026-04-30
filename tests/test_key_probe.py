@@ -92,3 +92,86 @@ def test_reset_returns_to_placeholder(qapp):
     assert probe.display_text == KeyProbe.PLACEHOLDER
     assert probe.spec_text == ""
     assert probe.kind_text == ""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Fn side-channel: NSEvent local monitor (matches HotkeyRecorder's path)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class _FakeAppKit:
+    NSEventMaskFlagsChanged = 1 << 12
+
+    def __init__(self) -> None:
+        self.added: list[object] = []
+        self.removed: list[object] = []
+        self._handlers: list = []
+
+    class _NSEventStub:
+        def __init__(self, outer: _FakeAppKit) -> None:
+            self._outer = outer
+
+        def addLocalMonitorForEventsMatchingMask_handler_(  # noqa: N802
+            self, mask, handler
+        ):
+            token = object()
+            self._outer.added.append(token)
+            self._outer._handlers.append(handler)
+            return token
+
+        def removeMonitor_(self, token):  # noqa: N802
+            self._outer.removed.append(token)
+
+    @property
+    def NSEvent(self):  # noqa: N802
+        return self._NSEventStub(self)
+
+    def fire(self, flags: int) -> None:
+        class _Event:
+            def __init__(self, flags: int) -> None:
+                self._flags = flags
+
+            def modifierFlags(self):  # noqa: N802
+                return self._flags
+
+        for h in self._handlers:
+            h(_Event(flags))
+
+
+def _install_fake_appkit(monkeypatch) -> _FakeAppKit:
+    import types
+
+    fake = _FakeAppKit()
+    monkeypatch.setitem(
+        sys.modules,
+        "AppKit",
+        types.SimpleNamespace(
+            NSEvent=fake.NSEvent,
+            NSEventMaskFlagsChanged=fake.NSEventMaskFlagsChanged,
+        ),
+    )
+    monkeypatch.setattr("murmur.fn_monitor.sys.platform", "darwin")
+    return fake
+
+
+_NS_FN_FLAG = 1 << 23
+
+
+def test_fn_press_via_local_monitor_updates_probe(monkeypatch, qapp):
+    """Real-hardware path: pressing Fn fires the NSEvent handler, the
+    probe shows ``<fn>`` / "Modifier (works alone)"."""
+    fake = _install_fake_appkit(monkeypatch)
+    probe = KeyProbe()
+    # Manually drive the focus lifecycle — offscreen Qt may not deliver
+    # a real focus event by itself.
+    from PySide6.QtCore import Qt as _Qt
+    from PySide6.QtGui import QFocusEvent
+
+    probe.focusInEvent(QFocusEvent(QFocusEvent.Type.FocusIn, _Qt.FocusReason.OtherFocusReason))
+    assert len(fake.added) == 1
+    fake.fire(_NS_FN_FLAG)
+    assert probe.spec_text == "<fn>"
+    assert "Modifier" in probe.kind_text
+
+    probe.focusOutEvent(QFocusEvent(QFocusEvent.Type.FocusOut, _Qt.FocusReason.OtherFocusReason))
+    assert fake.removed == fake.added
