@@ -1,4 +1,11 @@
-"""OpenAI Whisper API transcription backend."""
+"""OpenAI-compatible cloud transcription backend.
+
+A single class that targets any OpenAI-compatible ``/audio/transcriptions``
+endpoint. Providers (OpenAI, Groq, DeepSeek, MiniMax, user-added custom
+endpoints) differ only in ``base_url``, ``api_key``, and ``model`` — hence
+the constructor tuple. See
+``docs/adr/0002-single-openai-compatible-transcriber.md``.
+"""
 from __future__ import annotations
 
 import io
@@ -7,10 +14,11 @@ import wave
 import numpy as np
 
 
-class OpenAIWhisper:
-    def __init__(self, api_key: str, model: str = "whisper-1") -> None:
+class OpenAICompatible:
+    def __init__(self, base_url: str, api_key: str, model: str) -> None:
         if not api_key:
-            raise ValueError("OpenAI API key is empty")
+            raise ValueError("API key is empty")
+        self.base_url = base_url
         self.api_key = api_key
         self.model = model
         self._client = None
@@ -20,7 +28,7 @@ class OpenAIWhisper:
             return self._client
         from openai import OpenAI
 
-        self._client = OpenAI(api_key=self.api_key)
+        self._client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         return self._client
 
     def transcribe(

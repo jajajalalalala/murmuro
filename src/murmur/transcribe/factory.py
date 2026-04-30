@@ -24,7 +24,7 @@ def build(cfg: cfg_mod.Config) -> Transcriber:
         )
     if cfg.backend == "openai":
         from .. import secrets
-        from .openai_api import OpenAIWhisper
+        from .openai_compatible import OpenAICompatible
 
         # Prefer the keychain entry written by the Models page; fall back
         # to the configured env var name for users who set up Murmur
@@ -36,5 +36,12 @@ def build(cfg: cfg_mod.Config) -> Transcriber:
                 "OpenAI backend selected but no API key found. Add one on the Models "
                 f"page or set the {cfg.openai.api_key_env} env var."
             )
-        return OpenAIWhisper(api_key=api_key, model=cfg.openai.model)
+        # Hardcoded for now — registry-driven dispatch (Groq, DeepSeek,
+        # custom endpoints) lands in #17 / #19 / #21. ADR-0002 covers the
+        # rationale for collapsing all cloud backends onto this one class.
+        return OpenAICompatible(
+            base_url="https://api.openai.com/v1",
+            api_key=api_key,
+            model=cfg.openai.model,
+        )
     raise ValueError(f"Unknown backend: {cfg.backend!r}")
