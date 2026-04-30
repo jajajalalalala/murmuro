@@ -1,10 +1,23 @@
-"""Click-to-record widget for capturing a hotkey by pressing it.
+"""Click-to-capture widget for assigning a hotkey by pressing it.
 
-The user clicks "Record", presses the desired key (or combo) once, and the
-widget commits the result in pynput-compatible spec form
+The user clicks the spec field, presses the desired key (or combo) once,
+and the widget commits the result in pynput-compatible spec form
 (e.g. ``<right_alt>``, ``<ctrl>+<shift>+<space>``, ``<f9>``, ``a``,
 ``<left_ctrl>+5``). The committed spec is what
 :func:`murmur.hotkey.PushToTalkHotkey._parse_keys` already understands.
+
+There is no Record button. Capture mode is entered when the field
+receives focus (placeholder swaps to ``Press a key…``, the focus ring
+uses the violet accent) and exited when:
+
+* a key or modifier+non-modifier chord commits via the existing
+  ``_held`` / ``_max_modifier_combo`` rules, or
+* the user presses ``Esc`` (cancel — revert to the previously committed
+  value), or
+* focus moves elsewhere (cancel — revert).
+
+A small ``×`` button next to the field clears the binding to an empty
+spec; pressing ``Backspace`` while focused does the same.
 
 Single-modifier hotkeys (Right Option alone) are detected on key release
 once the user lets go of the last modifier; combos with a non-modifier
@@ -18,10 +31,11 @@ around any physical key without falling back to "edit the TOML".
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QKeyEvent
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtGui import QFocusEvent, QKeyEvent
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
 
 from .fn_monitor import FnFocusMonitor
+from .ui.theme import ACCENT
 
 # ─────────────────────────────────────────────────────────────────────────────
 # macOS virtual keycodes
@@ -115,6 +129,12 @@ _HUMAN_NAMES: dict[str, str] = {
 }
 
 
+# Placeholder shown in the field when capture mode is active and the user
+# hasn't pressed anything yet. Constant so tests and the page-level hint
+# can reference it without a magic string.
+CAPTURE_PLACEHOLDER = "Press a key…"
+
+
 def resolve_key_event(event: QKeyEvent) -> tuple[str, bool] | None:
     """Resolve a Qt key event to ``(spec_token, is_modifier)``, or ``None``.
 
@@ -159,13 +179,27 @@ def humanize(spec: str) -> str:
     return " + ".join(pretty)
 
 
-class HotkeyRecorder(QWidget):
-    """Composite widget: shows current hotkey + a Record button.
+# Stylesheets for the spec-display label. Two states only: idle (mid-tone
+# border) and capturing (violet accent ring). The ``capturing`` state is
+# also exposed via a dynamic property so tests can assert it without
+# parsing the stylesheet.
+_FIELD_STYLE_IDLE = (
+    "padding: 6px 10px; border: 1px solid palette(mid);"
+    "border-radius: 6px; background: palette(base);"
+)
+_FIELD_STYLE_CAPTURING = (
+    f"padding: 6px 10px; border: 1px solid {ACCENT};"
+    f"border-radius: 6px; background: palette(base);"
+)
 
-    Emits ``value_changed(spec)`` whenever the user records a new combo.
-    Programmatic ``set_value`` is intentionally silent so external config
-    reloads (e.g. user hand-edits the TOML) don't bounce back through
-    the page's persistence path.
+
+class HotkeyRecorder(QWidget):
+    """Composite widget: spec field + ``×`` clear button, click-to-capture.
+
+    Emits ``value_changed(spec)`` whenever the user records a new combo
+    or clears the binding. Programmatic ``set_value`` is intentionally
+    silent so external config reloads (e.g. user hand-edits the TOML)
+    don't bounce back through the page's persistence path.
     """
 
     value_changed = Signal(str)
@@ -173,17 +207,21 @@ class HotkeyRecorder(QWidget):
     def __init__(self, initial: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._spec: str = initial
-        self._recording: bool = False
-        # Tokens currently physically held during a recording session.
+        # Tokens currently physically held during a capture session.
         self._held: set[str] = set()
         # Largest combo of modifiers held simultaneously this session — what
         # we commit if the user releases without pressing a non-modifier.
         self._max_modifier_combo: list[str] = []
+        # The widget itself owns focus so capture mode follows focus events.
+        # StrongFocus lets both Tab and click reach us; Tab navigation away
+        # is handled by Qt's default focus-out path (we never override it).
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         # Side-channel monitor for the Fn (🌐) key. Cocoa never delivers
         # ``keyDown:`` for Fn — only ``flagsChanged:`` — so Qt's
         # ``keyPressEvent`` never fires for it. Without this monitor the
-        # recorder waits forever when the user presses Fn. Installed only
-        # while a recording session is active. See fn_monitor.py.
+        # recorder waits forever when the user presses Fn. Lifetime is
+        # tied to focus so we don't leak NSEvent handlers.
+        # See fn_monitor.py.
         self._fn_monitor = FnFocusMonitor(
             on_press=self._on_fn_press,
             on_release=self._on_fn_release,
@@ -192,17 +230,30 @@ class HotkeyRecorder(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
+        # The label is a passive display target — the parent widget owns
+        # focus and key handling. Clicking the label still focuses us
+        # because mouse clicks bubble up to a StrongFocus parent.
         self._label = QLabel(humanize(initial))
-        self._label.setStyleSheet(
-            "padding: 6px 10px; border: 1px solid palette(mid);"
-            "border-radius: 6px; background: palette(base);"
-        )
+        self._label.setObjectName("hotkeyField")
+        self._label.setProperty("capturing", False)
+        self._label.setStyleSheet(_FIELD_STYLE_IDLE)
         self._label.setMinimumWidth(180)
-        self._button = QPushButton("Record…")
-        self._button.setProperty("primary", True)
-        self._button.clicked.connect(self._start_recording)
+        # Forward clicks on the label to focus the recorder. Without this
+        # the user has to click the surrounding padding instead of the
+        # text itself to enter capture mode.
+        self._label.installEventFilter(self)
+
+        # × clear button. ToolButton keeps it visually compact next to the
+        # field and avoids inheriting the global QPushButton padding.
+        self._clear_button = QToolButton()
+        self._clear_button.setText("×")
+        self._clear_button.setToolTip("Clear hotkey")
+        self._clear_button.setAutoRaise(True)
+        self._clear_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._clear_button.clicked.connect(self._clear)
+
         layout.addWidget(self._label, 1)
-        layout.addWidget(self._button)
+        layout.addWidget(self._clear_button)
 
     # ----- public API used by the dialog ------------------------------
 
@@ -213,36 +264,65 @@ class HotkeyRecorder(QWidget):
         self._spec = spec
         self._label.setText(humanize(spec))
 
-    # ----- recording state machine ------------------------------------
+    @property
+    def is_capturing(self) -> bool:
+        """True iff the field currently has focus (capture mode active)."""
+        return bool(self._label.property("capturing"))
 
-    def _start_recording(self) -> None:
-        self._recording = True
+    # ----- capture session lifecycle ----------------------------------
+    # The widget is the focus owner: ``focusInEvent`` enters capture mode,
+    # ``focusOutEvent`` cancels it. There is no separate Record button so
+    # the lifecycle methods are the natural anchor for the Fn side channel
+    # too — matching :class:`murmur.key_probe.KeyProbe`.
+
+    def _enter_capture(self) -> None:
         self._held = set()
         self._max_modifier_combo = []
-        self._button.setText("Press hotkey… (Esc cancels)")
-        self._button.setEnabled(False)
-        self._label.setText("Listening…")
-        self.setFocus(Qt.FocusReason.OtherFocusReason)
-        self.grabKeyboard()
-        # Arm the Fn-key side channel for this session. No-op off-macOS.
-        self._fn_monitor.start()
+        self._label.setText(CAPTURE_PLACEHOLDER)
+        self._label.setProperty("capturing", True)
+        self._label.setStyleSheet(_FIELD_STYLE_CAPTURING)
+        # Re-polish so dynamic-property selectors in any future stylesheet
+        # pick up the change. The inline stylesheet above already forces
+        # the visual swap, but this keeps things consistent.
+        self._label.style().unpolish(self._label)
+        self._label.style().polish(self._label)
 
-    def _stop_recording(self) -> None:
-        self._recording = False
+    def _exit_capture(self) -> None:
         self._held = set()
         self._max_modifier_combo = []
-        self._button.setText("Record…")
-        self._button.setEnabled(True)
-        self.releaseKeyboard()
-        # Tear down the Fn monitor so we don't leak NSEvent handlers
-        # across record sessions.
-        self._fn_monitor.stop()
+        self._label.setText(humanize(self._spec))
+        self._label.setProperty("capturing", False)
+        self._label.setStyleSheet(_FIELD_STYLE_IDLE)
+        self._label.style().unpolish(self._label)
+        self._label.style().polish(self._label)
 
     def _commit(self, spec: str) -> None:
+        """Record ``spec`` as the new value and drop focus so capture ends.
+
+        The actual capture-mode teardown happens in ``focusOutEvent`` —
+        relinquishing focus is what fires both that and any sibling-row
+        focus rings, so we route through it instead of mutating state
+        twice.
+        """
         self._spec = spec
         self._label.setText(humanize(spec))
-        self._stop_recording()
+        # Drop focus so focusOutEvent runs the teardown path; emit only
+        # after that so listeners see consistent state.
+        self.clearFocus()
         self.value_changed.emit(spec)
+
+    def _clear(self) -> None:
+        """Reset the binding to an empty spec.
+
+        Idempotent: clearing an already-empty field still drops focus
+        (so the visual capture ring goes away) but emits no signal.
+        """
+        was_empty = self._spec == ""
+        self._spec = ""
+        self._label.setText(humanize(""))
+        self.clearFocus()
+        if not was_empty:
+            self.value_changed.emit("")
 
     def _token_for(self, event: QKeyEvent) -> tuple[str, bool] | None:
         return resolve_key_event(event)
@@ -253,7 +333,7 @@ class HotkeyRecorder(QWidget):
     # callbacks that drive the same state machine as Qt key events.
 
     def _on_fn_press(self) -> None:
-        if not self._recording:
+        if not self.is_capturing:
             return
         token = "<fn>"
         if token not in self._held:
@@ -265,24 +345,64 @@ class HotkeyRecorder(QWidget):
         )
 
     def _on_fn_release(self) -> None:
-        if not self._recording:
+        if not self.is_capturing:
             return
         token = "<fn>"
         self._held.discard(token)
         if not self._held and self._max_modifier_combo:
             self._commit("+".join(self._max_modifier_combo))
 
+    # ----- Qt focus / event plumbing ----------------------------------
+
+    def eventFilter(self, obj, event):  # noqa: N802 (Qt name)
+        # Forward mouse clicks on the display label to ourselves so the
+        # whole field, not just the surrounding padding, is the focus
+        # affordance.
+        from PySide6.QtCore import QEvent
+        if obj is self._label and event.type() == QEvent.Type.MouseButtonPress:
+            self.setFocus(Qt.FocusReason.MouseFocusReason)
+            return True
+        return super().eventFilter(obj, event)
+
+    def focusInEvent(self, event: QFocusEvent) -> None:  # noqa: N802 (Qt name)
+        self._enter_capture()
+        # Arm the Fn side channel for this session. No-op off-macOS.
+        self._fn_monitor.start()
+        super().focusInEvent(event)
+
+    def focusOutEvent(self, event: QFocusEvent) -> None:  # noqa: N802 (Qt name)
+        # Tear down the Fn monitor so we don't leak NSEvent handlers
+        # across focus cycles.
+        self._fn_monitor.stop()
+        self._exit_capture()
+        super().focusOutEvent(event)
+
     # ----- Qt key handling --------------------------------------------
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802 (Qt name)
-        if not self._recording:
+        if not self.is_capturing:
             super().keyPressEvent(event)
             return
         if event.isAutoRepeat():
             return
+        # Esc cancels and reverts. Only honoured when nothing is held so
+        # users binding the literal Esc key (rare but supported) aren't
+        # blocked — they release first, which puts ``_held`` back to empty
+        # and lets this branch fire on the *next* Esc press if they want
+        # to back out.
         if event.key() == Qt.Key.Key_Escape and not self._held:
-            self._stop_recording()
+            self.clearFocus()
             return
+        # Backspace clears the binding. Same gate as Esc: only when nothing
+        # is currently held, so Backspace can still be bound as a hotkey
+        # element (the press-as-modifier path falls through to the normal
+        # mapping below when modifiers are held).
+        if event.key() == Qt.Key.Key_Backspace and not self._held:
+            self._clear()
+            return
+        # Tab is left to Qt's default handler (focus navigation) — we
+        # explicitly never reach here because Qt eats Tab before key
+        # events propagate; documented for the next reader.
 
         mapped = self._token_for(event)
         if mapped is None:
@@ -301,7 +421,7 @@ class HotkeyRecorder(QWidget):
         self._label.setText(" + ".join(humanize(t) for t in self._max_modifier_combo) + " …")
 
     def keyReleaseEvent(self, event: QKeyEvent) -> None:  # noqa: N802
-        if not self._recording:
+        if not self.is_capturing:
             super().keyReleaseEvent(event)
             return
         if event.isAutoRepeat():

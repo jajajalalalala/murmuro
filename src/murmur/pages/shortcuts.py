@@ -52,8 +52,8 @@ class ShortcutsPage(QWidget):
         layout.addWidget(ptt_card)
 
         layout.addWidget(hint_label(
-            "Click Record, then press the key (or combo) you want as your "
-            "push-to-talk shortcut. Esc cancels."
+            "Click the field, then press the key (or combo) you want as "
+            "your push-to-talk shortcut. Esc cancels; × clears."
         ))
 
         layout.addSpacing(10)
