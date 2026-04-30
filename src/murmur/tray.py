@@ -127,7 +127,7 @@ def _ensure_input_monitoring(parent=None) -> bool:
     return False
 
 
-def _hint_accessibility_if_denied(parent=None) -> None:
+def _hint_accessibility_if_denied(parent=None) -> bool:
     """If auto-paste is on but Accessibility isn't granted, surface a dialog.
 
     Doesn't block startup — the app still runs (clipboard-only mode is a
@@ -144,9 +144,9 @@ def _hint_accessibility_if_denied(parent=None) -> None:
     status = accessibility_status()
     _log.info("Accessibility status at startup: %s", status.value)
     if status == AccessibilityStatus.GRANTED:
-        return
+        return False
     if status == AccessibilityStatus.UNAVAILABLE:
-        return
+        return False
 
     open_text = "Open Accessibility settings"
     dialog = MurmurDialog(
@@ -172,6 +172,7 @@ def _hint_accessibility_if_denied(parent=None) -> None:
     dialog.exec()
     if dialog.clicked_text == open_text:
         open_accessibility_settings()
+    return True
 
 
 def run_tray(cfg: config_mod.Config) -> int:
@@ -189,8 +190,9 @@ def run_tray(cfg: config_mod.Config) -> int:
     if not _ensure_input_monitoring():
         return 2
 
+    accessibility_pending = False
     if cfg.auto_paste:
-        _hint_accessibility_if_denied()
+        accessibility_pending = _hint_accessibility_if_denied()
 
     bridge = _StateBridge()
     tray = QSystemTrayIcon()
@@ -228,9 +230,19 @@ def run_tray(cfg: config_mod.Config) -> int:
     main_window = MainWindow(cfg)
     # Open the window on launch so the user lands somewhere they can see —
     # the tray icon alone is easy to miss, especially on first install.
-    main_window.show()
-    main_window.raise_()
-    main_window.activateWindow()
+    #
+    # Skip the auto-show when the Accessibility hint just fired: the user
+    # is presumably about to flip over to System Settings, and showing
+    # the main window now causes a focus-fight (window appears, AppKit
+    # gives focus to System Settings, Qt tries to bring main back, and
+    # the loop repeats — visible as the main body flashing in and out
+    # until the user grants Accessibility). The tray icon stays visible
+    # so the user can open Murmur from the menu bar after relaunching
+    # with the right permissions.
+    if not accessibility_pending:
+        main_window.show()
+        main_window.raise_()
+        main_window.activateWindow()
     # Construct the HUD with a level-provider callable that points at the
     # recorder's live mic-volume reading. We pass a callable rather than the
     # recorder itself so the HUD stays decoupled from audio.py — see
