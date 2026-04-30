@@ -104,7 +104,9 @@ class MainWindow(QMainWindow):
         rail.setObjectName("rail")
         rail.setFixedWidth(170)
         rail_layout = QVBoxLayout(rail)
-        rail_layout.setContentsMargins(0, 0, 0, 0)
+        # Bottom margin pulls the About row up off the window edge so
+        # its text doesn't read as truncated against the bezel.
+        rail_layout.setContentsMargins(0, 0, 0, 12)
         rail_layout.setSpacing(0)
 
         rail_layout.addWidget(self._build_brand_header())
@@ -215,11 +217,11 @@ class MainWindow(QMainWindow):
         # No "current row" until the user clicks About — we keep the
         # selection clear so picking About is a deliberate jump.
         self._nav_bottom.setCurrentRow(-1)
-        # Constrain to one-row height so the About item sits flush at
-        # the bottom of the rail. Without this, QListWidget claims its
-        # default sizeHint (~150 px) and About appears halfway up the
-        # rail with empty space below.
-        self._nav_bottom.setFixedHeight(48)
+        # One-row height: bumped to 56 so the item's vertical padding
+        # has breathing room and "About" doesn't read as clipped at
+        # the bottom of the row. Coupled with the rail's bottom
+        # margin, the row sits clearly above the window edge.
+        self._nav_bottom.setFixedHeight(56)
         # No scrollbar, no frame — it's a single decorative row.
         self._nav_bottom.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
