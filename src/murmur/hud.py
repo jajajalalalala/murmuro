@@ -25,6 +25,30 @@ from ._logging import get_logger
 _log = get_logger("hud")
 
 
+def _format_elapsed(seconds: float) -> str:
+    """Adaptive elapsed-time format — truncates rather than rounds.
+
+    Under one minute the readout shows decimal seconds (e.g. ``12.3s``) so
+    short utterances feel responsive. At and beyond 60.0s the format flips
+    to whole-second ``Nm Ms`` so the pill stays narrow on long takes.
+
+    The 60.0s flip is exact — 59.999... still renders as ``59.9s`` because
+    we truncate the tenths digit, while 60.0 prints as ``1m 0s``.
+    """
+    if seconds < 0:
+        seconds = 0.0
+    if seconds < 60.0:
+        # Truncate to one decimal place: floor(seconds * 10) / 10.
+        tenths = int(seconds * 10)
+        whole = tenths // 10
+        frac = tenths % 10
+        return f"{whole}.{frac}s"
+    total_whole = int(seconds)  # floor for non-negative floats
+    minutes = total_whole // 60
+    secs = total_whole % 60
+    return f"{minutes}m {secs}s"
+
+
 def _apply_nonactivating_panel_style(widget: QWidget) -> None:
     """Make the widget's NSPanel a true status-bar-style overlay.
 
@@ -90,12 +114,22 @@ def _apply_nonactivating_panel_style(widget: QWidget) -> None:
 
 
 class RecordingHUD(QWidget):
-    WIDTH = 200
-    HEIGHT = 48
+    # Compact pill — half the previous 200x48 footprint so it competes
+    # less with whatever the user is reading while they dictate.
+    WIDTH = 100
+    HEIGHT = 24
     # Vertical gap above the screen's bottom edge. Big enough to clear the
     # Dock when it's pinned to the bottom, small enough to read as "near the
     # bottom" rather than "floating in the middle".
     BOTTOM_MARGIN = 96
+
+    # Visual contract for the three "anonymous" dots in the left cluster.
+    # They're decorative in this slice; #18 will wire them to mic volume.
+    _DOT_DIAMETER = 2
+    _DOT_COUNT = 3
+    _DOT_CLUSTER_LEFT = 8  # px from left edge of pill to first dot
+    _DOT_CLUSTER_WIDTH = 22  # leaves the cluster occupying the left ~30px
+    _DOT_COLOR = QColor(245, 245, 245, 77)  # ~30% alpha, neutral light gray
 
     def __init__(self) -> None:
         super().__init__()
@@ -114,13 +148,14 @@ class RecordingHUD(QWidget):
         self.resize(self.WIDTH, self.HEIGHT)
 
         self._t0: float = 0.0
-        self._pulse_phase = 0
+        # Timer drives repaint() so the elapsed-time text stays current.
+        # The dots are static in this slice — no animation phase to track.
         self._timer = QTimer(self)
         self._timer.setInterval(80)
         self._timer.timeout.connect(self._tick)
 
     def _tick(self) -> None:
-        self._pulse_phase = (self._pulse_phase + 1) % 20
+        # Just nudge a repaint — only the timer text needs refreshing now.
         self.update()
 
     def show_at_bottom_center(self) -> None:
@@ -133,7 +168,6 @@ class RecordingHUD(QWidget):
         y = geo.bottom() - self.HEIGHT - self.BOTTOM_MARGIN
         self.move(x, y)
         self._t0 = time.monotonic()
-        self._pulse_phase = 0
         self._timer.start()
         self.show()
         # Reapply on every show: Qt may regenerate the underlying NSPanel
@@ -149,28 +183,41 @@ class RecordingHUD(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Dark rounded background
+        # Dark rounded background — 12px radius is proportional to the
+        # 22px we used at the previous 2x size.
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor(18, 18, 22, 235))
-        p.drawRoundedRect(self.rect(), 22, 22)
+        p.drawRoundedRect(self.rect(), 12, 12)
 
-        # Pulsing red dot — phase ramps 0..19, fold to 0..10..0 for ping-pong
-        ramp = self._pulse_phase if self._pulse_phase < 10 else (20 - self._pulse_phase)
-        intensity = 0.55 + 0.45 * (ramp / 10)
-        dot = QColor(229, 57, 53, int(255 * intensity))
-        p.setBrush(dot)
-        p.drawEllipse(16, self.HEIGHT // 2 - 7, 14, 14)
+        # Three muted dots in the left cluster. Anonymous on purpose — issue
+        # #18 will color them by mic volume; for now they're a static
+        # placeholder so the pill doesn't read as a flat empty bar.
+        p.setBrush(self._DOT_COLOR)
+        cy = self.HEIGHT // 2 - self._DOT_DIAMETER // 2
+        # Evenly space N dots across the cluster band: positions land at
+        # i / (N - 1) of the band's interior.
+        step = (
+            self._DOT_CLUSTER_WIDTH / (self._DOT_COUNT - 1)
+            if self._DOT_COUNT > 1
+            else 0
+        )
+        for i in range(self._DOT_COUNT):
+            x = self._DOT_CLUSTER_LEFT + int(round(i * step))
+            p.drawEllipse(x, cy, self._DOT_DIAMETER, self._DOT_DIAMETER)
 
-        # Label + elapsed time
+        # Elapsed-time readout — adaptive format keeps the pill narrow.
         p.setPen(QColor(245, 245, 245, 235))
         font = QFont()
-        font.setPointSize(13)
+        font.setPointSize(10)
         font.setBold(True)
         p.setFont(font)
         elapsed = max(0.0, time.monotonic() - self._t0)
-        text = f"Recording  {elapsed:0.1f}s"
+        text = _format_elapsed(elapsed)
+        # Reserve the left cluster for dots, right edge gets a small inset
+        # so the text doesn't crowd the pill's rounded corner.
+        text_left = self._DOT_CLUSTER_LEFT + self._DOT_CLUSTER_WIDTH + 6
         p.drawText(
-            self.rect().adjusted(40, 0, -12, 0),
+            self.rect().adjusted(text_left, 0, -8, 0),
             int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft),
             text,
         )
