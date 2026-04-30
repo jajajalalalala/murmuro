@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
-    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -138,18 +137,19 @@ class HomePage(QWidget):
         return status_card
 
     def _build_transcripts_card(self) -> QWidget:
-        """Recent transcripts as a card. When empty, a friendly
-        placeholder replaces the bare-rectangle empty state.
+        """Recent transcripts as a card.
 
-        Earlier versions used ``QListWidget`` + ``setItemWidget`` to
-        host custom rows. That combination silently rendered nothing in
-        the bundled .app — the item's size hint reported width 0 and
-        the embedded widget never got geometry. Switching to a plain
-        ``QVBoxLayout`` of clickable row widgets sidesteps the whole
-        item-view sizing dance: each row is a real widget, sized by
-        the surrounding layout, and click-to-copy lives directly on the
-        row. Tests that used ``_list.count()`` / ``_list.item(0)`` now
-        target ``_rows`` instead.
+        We had a ``QStackedWidget`` here before to swap between an
+        empty-state placeholder and a rows container. In the bundled
+        .app the rows view never appeared — the rows container had
+        nothing but a trailing stretch at first paint, so the stack's
+        size hint collapsed when we flipped to it and the freshly
+        added row was rendered into a zero-height region.
+
+        Simpler shape: one container with the empty-state widget AND
+        the rows. ``add_transcript`` hides the empty state on first
+        arrival and inserts each new row above the previous newest.
+        No stack, no size-hint games.
         """
         transcripts_card = card()
         layout = QVBoxLayout(transcripts_card)
@@ -157,18 +157,8 @@ class HomePage(QWidget):
         layout.setSpacing(10)
         layout.addWidget(card_title("Recent transcripts"))
 
-        rows_container = QWidget()
-        self._rows_layout = QVBoxLayout(rows_container)
-        self._rows_layout.setContentsMargins(0, 0, 0, 0)
-        self._rows_layout.setSpacing(6)
-        self._rows_layout.addStretch(1)
-        # Tracks the visible row widgets newest-first so trimming and
-        # tests can introspect the order without walking the layout.
-        self._rows: list[_TranscriptRow] = []
-
-        # Empty-state placeholder. Swapped in via a QStackedWidget when
-        # the list has zero rows; pages flip to the rows view as soon
-        # as the first transcript arrives.
+        # Empty-state placeholder. Visible when ``_rows`` is empty;
+        # hidden by ``add_transcript`` once a real row arrives.
         empty = QWidget()
         empty_layout = QVBoxLayout(empty)
         empty_layout.setContentsMargins(0, 24, 0, 24)
@@ -188,11 +178,18 @@ class HomePage(QWidget):
         empty_layout.addStretch(1)
         self._empty_state = empty
 
-        self._transcripts_stack = QStackedWidget()
-        self._transcripts_stack.addWidget(self._empty_state)
-        self._transcripts_stack.addWidget(rows_container)
-        self._transcripts_stack.setCurrentWidget(self._empty_state)
-        layout.addWidget(self._transcripts_stack)
+        # Single container holds the empty-state and the row stack.
+        # Rows are inserted above the empty-state; the stretch at the
+        # bottom keeps everything top-aligned.
+        self._rows_layout = QVBoxLayout()
+        self._rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._rows_layout.setSpacing(6)
+        self._rows_layout.addWidget(self._empty_state)
+        self._rows_layout.addStretch(1)
+        # Tracks the visible row widgets newest-first so trimming and
+        # tests can introspect the order without walking the layout.
+        self._rows: list[_TranscriptRow] = []
+        layout.addLayout(self._rows_layout)
         return transcripts_card
 
     def _build_preferences_card(self) -> QWidget:
@@ -313,19 +310,18 @@ class HomePage(QWidget):
         timestamp = (when or datetime.now()).strftime("%H:%M")
         row = _TranscriptRow(text=text, timestamp=timestamp)
         row.clicked.connect(lambda t=text: pyperclip.copy(t))
-        # Insert at index 0 so newest is on top; the trailing stretch is
-        # always at index ``len(self._rows) + 0`` after we insert (the
-        # stretch shifts down by one for each prepended row).
+        # Hide the empty state once a real transcript arrives. Cheaper
+        # than reshuffling layouts and doesn't depend on the stack's
+        # size hint changing.
+        self._empty_state.hide()
+        # Insert at index 0 so newest is on top; the empty-state widget
+        # and trailing stretch shift down by one slot per prepended row.
         self._rows_layout.insertWidget(0, row)
         self._rows.insert(0, row)
         while len(self._rows) > self.MAX_TRANSCRIPTS:
             old = self._rows.pop()
             self._rows_layout.removeWidget(old)
             old.deleteLater()
-
-        # First transcript switches the stack to the rows view.
-        if self._transcripts_stack.currentWidget() is self._empty_state:
-            self._transcripts_stack.setCurrentIndex(1)
 
     def apply_to_config(self, cfg: config_mod.Config) -> config_mod.Config:
         """Return a copy of cfg with this page's preferences applied."""

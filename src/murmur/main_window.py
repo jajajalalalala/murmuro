@@ -476,27 +476,41 @@ class MainWindow(QMainWindow):
 class _DragHeader(QWidget):
     """Brand-header widget that drags the parent window when clicked.
 
-    With the macOS title bar hidden the user has no built-in surface
-    to grab. We tried ``QWindow.startSystemMove()`` first — the docs
-    suggest it but on the cocoa platform plugin it returns ``False``
-    on press (the AppKit handoff doesn't fire), so the window stayed
-    put. Manual drag tracking is unglamorous but works on every
-    platform: record the press offset relative to the top-level
-    window's frame, then ``move()`` the window on each motion event.
+    Two earlier implementations didn't actually drag anything in the
+    bundled .app:
+
+    1. ``QWindow.startSystemMove()`` returned ``False`` on the cocoa
+       platform plugin — the AppKit handoff didn't fire.
+    2. Manual offset tracking + ``QWidget.move()`` set the new geometry
+       but AppKit promptly snapped the window back; with the title
+       bar hidden, NSWindow ignores programmatic moves issued from a
+       mouse-press handler unless they go through its drag pipeline.
+
+    The reliable path on macOS is ``[NSWindow performWindowDragWithEvent:]``.
+    It hands the active mouse press straight to AppKit's window-drag
+    machinery — same code path the title bar uses. We pull the
+    current ``NSEvent`` from ``NSApp`` and pass it in. Falls back to
+    the manual tracker on non-macOS platforms (Windows packaging is
+    a v1.0 task; this keeps the offscreen test runner happy too).
     """
 
-    _drag_offset = None  # set on press, cleared on release
+    _drag_offset = None  # used on non-macOS / fallback path
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt API)
-        if event.button() == Qt.MouseButton.LeftButton:
-            window = self.window()
-            if window is not None:
-                self._drag_offset = (
-                    event.globalPosition().toPoint()
-                    - window.frameGeometry().topLeft()
-                )
-                event.accept()
-                return
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
+            return
+        if sys.platform == "darwin" and self._cocoa_drag():
+            event.accept()
+            return
+        window = self.window()
+        if window is not None:
+            self._drag_offset = (
+                event.globalPosition().toPoint()
+                - window.frameGeometry().topLeft()
+            )
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 (Qt API)
@@ -517,3 +531,37 @@ class _DragHeader(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_offset = None
         super().mouseReleaseEvent(event)
+
+    def _cocoa_drag(self) -> bool:
+        """Hand the current mouse press to NSWindow's drag pipeline.
+
+        Returns True iff the handoff succeeded; the caller falls back
+        to manual tracking on False. Silently fails when pyobjc isn't
+        installed or the Qt platform is something other than cocoa
+        (e.g. ``offscreen`` under tests).
+        """
+        from PySide6.QtGui import QGuiApplication
+        if QGuiApplication.platformName() != "cocoa":
+            return False
+        try:
+            import objc
+            from AppKit import NSApp
+        except ImportError:
+            return False
+        try:
+            ns_event = NSApp.currentEvent()
+            if ns_event is None:
+                return False
+            window = self.window()
+            view_ptr = int(window.winId()) if window is not None else 0
+            if not view_ptr:
+                return False
+            ns_view = objc.objc_object(c_void_p=view_ptr)
+            ns_window = ns_view.window()
+            if ns_window is None:
+                return False
+            ns_window.performWindowDragWithEvent_(ns_event)
+            return True
+        except Exception as e:  # noqa: BLE001
+            _log.warning("cocoa window drag failed: %s", e)
+            return False
