@@ -5,6 +5,7 @@ Shows current state via a colored dot and a context menu with Quit.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
@@ -29,6 +30,18 @@ from .ui.theme import apply_theme
 
 _log = get_logger("tray")
 
+# Path to the monochrome μ silhouette we use as the idle tray icon.
+# Resolved the same way the main window resolves bundled assets so
+# PyInstaller's _MEIPASS path works at runtime.
+def _assets_dir() -> Path:
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        return Path(meipass) / "assets"
+    return Path(__file__).resolve().parents[2] / "assets"
+
+
+_WORDMARK_DARK_PATH = _assets_dir() / "wordmark_dark.png"
+
 
 def _dot_icon(color: str) -> QIcon:
     pm = QPixmap(64, 64)
@@ -40,6 +53,18 @@ def _dot_icon(color: str) -> QIcon:
     p.drawEllipse(8, 8, 48, 48)
     p.end()
     return QIcon(pm)
+
+
+def _idle_icon() -> QIcon:
+    """Black μ silhouette for the menu-bar idle state, replacing the
+    previous gray dot. Recording / transcribing still use colored dots
+    so state is visible at a glance even from the menu bar.
+
+    Falls back to the gray dot when the asset is missing — keeps the
+    app launchable even if the assets directory wasn't bundled."""
+    if _WORDMARK_DARK_PATH.exists():
+        return QIcon(str(_WORDMARK_DARK_PATH))
+    return _dot_icon("#9aa0a6")
 
 
 STATE_ICONS = {
@@ -155,7 +180,11 @@ def run_tray(cfg: config_mod.Config) -> int:
 
     bridge = _StateBridge()
     tray = QSystemTrayIcon()
-    tray.setIcon(_dot_icon(STATE_ICONS[State.IDLE][0]))
+    # Idle state uses the μ silhouette in the menu bar (replacing the
+    # gray dot the user flagged); active states still get a colored
+    # dot so the menu-bar reading is recording / transcribing at a
+    # glance.
+    tray.setIcon(_idle_icon())
     tray.setToolTip(f"Murmur v{__version__} — idle")
 
     menu = QMenu()
@@ -201,7 +230,11 @@ def run_tray(cfg: config_mod.Config) -> int:
     def on_state(s: State) -> None:
         _log.info("state -> %s", s.value)
         color, label = STATE_ICONS.get(s, STATE_ICONS[State.IDLE])
-        tray.setIcon(_dot_icon(color))
+        # Idle → μ silhouette; active states (recording, transcribing)
+        # → colored dot so a glance at the menu bar tells you what's
+        # going on. ``color`` is unused for IDLE here; the silhouette
+        # carries the brand instead.
+        tray.setIcon(_idle_icon() if s is State.IDLE else _dot_icon(color))
         tray.setToolTip(f"Murmur v{__version__} — {label}")
         state_action.setText(label)
         main_window.update_state(s)
