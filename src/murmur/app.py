@@ -13,7 +13,7 @@ from enum import Enum
 from . import config as config_mod
 from . import providers as providers_mod
 from ._logging import get_logger
-from .audio import SAMPLE_RATE, Recorder
+from .audio import SAMPLE_RATE, Recorder, resolve_input_device
 from .hotkey import PushToTalkHotkey
 from .inject import paste_at_cursor, to_clipboard
 from .sounds import play_start, play_stop
@@ -52,7 +52,11 @@ class MurmurApp:
         # from the same thread that owns the run loop is the only reliable
         # delivery path we've found.
         self._on_paste_request = on_paste_request
-        self._recorder = Recorder()
+        # Resolve the persisted input-device name to a PortAudio index
+        # at startup so the first push-to-talk press uses the user's
+        # selection. Empty/missing names fall through to PortAudio's
+        # default device.
+        self._recorder = Recorder(device=resolve_input_device(cfg.input_device))
         self._transcriber = None  # lazy
         self._hotkey: PushToTalkHotkey | None = None
         self._state = State.IDLE
@@ -192,6 +196,13 @@ class MurmurApp:
         if transcriber_changed:
             # Force a rebuild on the next push-to-talk.
             self._transcriber = None
+
+        # Re-resolve the input device on every reload — the saved name
+        # might now point at a different PortAudio index (USB mics
+        # come and go). Recorder.set_device only takes effect on the
+        # next start(), which is fine: we never reload mid-recording.
+        if old_cfg.input_device != cfg.input_device:
+            self._recorder.set_device(resolve_input_device(cfg.input_device))
 
 
 def _transcriber_inputs_changed(

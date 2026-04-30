@@ -42,6 +42,7 @@ from . import config as config_mod
 from ._logging import get_logger
 from .app import State
 from .pages.about import AboutPage
+from .pages.audio import AudioPage
 from .pages.home import HomePage
 from .pages.models import ModelsPage
 from .pages.shortcuts import ShortcutsPage
@@ -158,7 +159,7 @@ class MainWindow(QMainWindow):
         nav_layout = QVBoxLayout(nav_host)
         nav_layout.setContentsMargins(8, 8, 8, 0)
         nav_layout.setSpacing(0)
-        for idx, label in enumerate(("Home", "Shortcuts", "Models")):
+        for idx, label in enumerate(("Home", "Shortcuts", "Audio", "Models")):
             btn = QPushButton(label)
             btn.setProperty("navItem", True)
             btn.setCheckable(True)
@@ -182,10 +183,19 @@ class MainWindow(QMainWindow):
         self._stack = QStackedWidget()
         self.home_page = HomePage(cfg)
         self.shortcuts_page = ShortcutsPage(cfg)
+        # Audio page sits between Shortcuts and Models so input
+        # configuration (mic) lives next to its closest semantic
+        # neighbour (push-to-talk binding) rather than being lumped
+        # in with backend/model selection.
+        self.audio_page = AudioPage(cfg)
         self.models_page = ModelsPage(cfg)
         self.about_page = AboutPage(cfg)
         for page in (
-            self.home_page, self.shortcuts_page, self.models_page, self.about_page
+            self.home_page,
+            self.shortcuts_page,
+            self.audio_page,
+            self.models_page,
+            self.about_page,
         ):
             self._stack.addWidget(scroll_wrap(page))
         root.addWidget(self._stack, 1)
@@ -198,7 +208,12 @@ class MainWindow(QMainWindow):
 
         # Persist + notify on any page edit. The save+reload cost is tiny
         # compared to a full transcription cycle, so we don't debounce.
-        for page in (self.home_page, self.shortcuts_page, self.models_page):
+        for page in (
+            self.home_page,
+            self.shortcuts_page,
+            self.audio_page,
+            self.models_page,
+        ):
             page.preferences_changed.connect(self._persist_changes)
 
         # Theme toggle lives on the Home page now (not the rail) — it's
@@ -309,8 +324,32 @@ class MainWindow(QMainWindow):
 
     # ----- Navigation coordination ----------------------------------------
 
+    # Public-friendly page identifiers — used by tray-menu deep links so
+    # the caller doesn't have to know the stack index.
+    PAGE_HOME = 0
+    PAGE_SHORTCUTS = 1
+    PAGE_AUDIO = 2
+    PAGE_MODELS = 3
+    PAGE_ABOUT = 4
+
+    def show_page(self, page: int) -> None:
+        """Open the window on a specific page.
+
+        Used by the tray menu's deep-link items (Open Murmur… → Home,
+        Edit hotkey… → Shortcuts, Microphone input… → Audio). Wraps
+        the per-button selection helpers + ``show()`` so callers get a
+        single clean entry point.
+        """
+        if page == self.PAGE_ABOUT:
+            self._on_about_clicked()
+        else:
+            self._select_nav(page)
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
     def _select_nav(self, idx: int) -> None:
-        """Select one of the top nav buttons (Home/Shortcuts/Models).
+        """Select one of the top nav buttons (Home/Shortcuts/Audio/Models).
 
         Flips the stack to the matching page, makes the chosen button
         the only checked top button, and unchecks About so we never
@@ -323,10 +362,10 @@ class MainWindow(QMainWindow):
             self._about_button.setChecked(False)
 
     def _on_about_clicked(self) -> None:
-        """About button clicked — switch to the About page (index 3)
-        and clear the top nav's highlight. The button stays checked
-        until another nav destination is picked."""
-        self._stack.setCurrentIndex(3)
+        """About button clicked — switch to the About page and clear
+        the top nav's highlight. The button stays checked until another
+        nav destination is picked."""
+        self._stack.setCurrentIndex(self.PAGE_ABOUT)
         self._about_button.setChecked(True)
         for btn in self._nav_buttons:
             btn.setChecked(False)
@@ -434,6 +473,7 @@ class MainWindow(QMainWindow):
         self._cfg = cfg
         self.home_page.set_config(cfg)
         self.shortcuts_page.set_config(cfg)
+        self.audio_page.set_config(cfg)
         self.models_page.set_config(cfg)
         self.about_page.set_config(cfg)
 
@@ -448,18 +488,21 @@ class MainWindow(QMainWindow):
         draft = self._cfg
         draft = self.home_page.apply_to_config(draft)
         draft = self.shortcuts_page.apply_to_config(draft)
+        draft = self.audio_page.apply_to_config(draft)
         draft = self.models_page.apply_to_config(draft)
         hotkey_changed = previous.hotkey != draft.hotkey
 
         if hotkey_changed and not self._confirm_hotkey_restart():
-            # Cancel: undo the in-memory mutation and reset the shortcuts
-            # widget so the displayed hotkey matches what the running app
-            # is actually bound to. Any other changes the user made in
-            # this same save (rare — pages emit on each edit) revert too,
-            # which matches the "abandon this save attempt" mental model.
+            # Cancel: undo the in-memory mutation and reset the page
+            # widgets so the displayed values match what the running
+            # app is actually bound to. Any other changes the user
+            # made in this same save (rare — pages emit on each edit)
+            # revert too, which matches the "abandon this save attempt"
+            # mental model.
             self._cfg = previous
             self.shortcuts_page.set_config(previous)
             self.home_page.set_config(previous)
+            self.audio_page.set_config(previous)
             self.models_page.set_config(previous)
             return
 
