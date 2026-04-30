@@ -163,26 +163,26 @@ class MurmurApp:
         """Apply a new Config selectively.
 
         Pure-toggle changes (auto_paste, show_hud, play_beeps, language)
-        are read at use-time, so they need no rebuild — assigning ``self.cfg``
-        is enough. We only:
-          - drop the cached transcriber when backend / cloud_provider_id /
-            model actually changed (it lazy-rebuilds on next press);
-          - stop and restart the pynput listener when the hotkey spec
-            changed.
+        are read at use-time, so they need no rebuild — assigning
+        ``self.cfg`` is enough. We only drop the cached transcriber when
+        backend / cloud_provider_id / model actually changed (it lazy-
+        rebuilds on the next push-to-talk press).
 
-        Skipping the listener stop/start on every save eliminates the
-        known pynput macOS instability window — see #43 and the
-        ``restart.py`` docstring. The larger v1.1+ hot-reload story is
-        tracked in #38.
+        Hotkey changes are NOT applied in-process. Two attempts to
+        hot-reload the pynput listener (PR #47 stop+start, PR #49
+        in-place rebind) both failed in the trusted ``Murmur.app``: the
+        old listener kept firing the previous hotkey. Instead the host
+        UI surfaces an explicit "Restart Murmur to apply?" modal — see
+        :meth:`murmur.main_window.MainWindow._prompt_restart_for_hotkey`.
         """
         old_cfg = self.cfg
         self.cfg = cfg
-        hotkey_changed = old_cfg.hotkey != cfg.hotkey
         transcriber_changed = _transcriber_inputs_changed(old_cfg, cfg)
         _log.debug(
-            "reload_config: hotkey_changed=%s, transcriber_changed=%s",
-            hotkey_changed,
+            "reload_config: transcriber_changed=%s, hotkey_changed=%s "
+            "(hotkey rebind handled by main-window restart modal)",
             transcriber_changed,
+            old_cfg.hotkey != cfg.hotkey,
         )
 
         # Always cheap and idempotent: refresh the runtime registry so
@@ -192,11 +192,6 @@ class MurmurApp:
         if transcriber_changed:
             # Force a rebuild on the next push-to-talk.
             self._transcriber = None
-
-        if hotkey_changed and self._hotkey is not None:
-            self._hotkey.stop()
-            self._hotkey = None
-            self.start()
 
 
 def _transcriber_inputs_changed(

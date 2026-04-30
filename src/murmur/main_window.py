@@ -8,22 +8,28 @@ closing this window only hides it (the app keeps running in the menu bar).
 Configuration is persisted whenever any page emits ``preferences_changed``:
 each page exposes ``apply_to_config(cfg)`` that mutates a Config draft, the
 window collects them, saves to disk, and notifies the host (tray) so the
-running ``MurmurApp`` can re-bind the hotkey and rebuild the transcriber.
+running ``MurmurApp`` can re-bind the model/provider in-process.
+
+Hotkey changes are the one axis we can't safely hot-reload (#38). Two
+attempts (PR #47 stop+start, PR #49 in-place rebind) both failed in the
+trusted ``Murmur.app`` for reasons that don't reproduce in offscreen
+tests. Instead we show an explicit "Restart Murmur to apply?" modal with
+Cancel as the default button — so a stray Enter (from committing the new
+hotkey) doesn't auto-fire the restart.
 """
 from __future__ import annotations
 
-import copy
 from collections.abc import Callable
 
-from PySide6.QtCore import QSize, QTimer, Signal
+from PySide6.QtCore import QSize, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMessageBox,
     QStackedWidget,
-    QSystemTrayIcon,
     QWidget,
 )
 
@@ -34,7 +40,7 @@ from .pages.about import AboutPage
 from .pages.home import HomePage
 from .pages.models import ModelsPage
 from .pages.shortcuts import ShortcutsPage
-from .restart import _default_relaunch, restart_reasons
+from .restart import _default_relaunch
 from .ui.theme import scroll_wrap
 
 _log = get_logger("main_window")
@@ -50,22 +56,13 @@ class MainWindow(QMainWindow):
         cfg: config_mod.Config,
         save_config: Callable[[config_mod.Config], None] | None = None,
         parent: QWidget | None = None,
-        tray: QSystemTrayIcon | None = None,
         relaunch_fn: Callable[[], None] | None = None,
-        restart_delay_ms: int = 800,
     ) -> None:
         super().__init__(parent)
         self._cfg = cfg
         self._save_config = save_config or config_mod.save
-        # Tray is owned by the host (run_tray); we hold a reference so we
-        # can surface a notification before relaunching. None in tests.
-        self._tray = tray
         # Injectable for tests so we don't actually re-exec.
         self._relaunch_fn = relaunch_fn or _default_relaunch
-        # Window between the tray notification appearing and the relaunch
-        # firing. Long enough for the OS to actually paint the banner, short
-        # enough that the user doesn't keep typing into the about-to-die app.
-        self._restart_delay_ms = restart_delay_ms
 
         self.setWindowTitle("Murmur")
         self.resize(QSize(760, 520))
@@ -128,9 +125,7 @@ class MainWindow(QMainWindow):
     # ----- Persistence ----------------------------------------------------
 
     def _persist_changes(self) -> None:
-        # Pages mutate the cfg in place, so snapshot before applying so
-        # restart_reasons can compare old vs new.
-        previous = copy.deepcopy(self._cfg)
+        previous_hotkey = self._cfg.hotkey
         draft = self._cfg
         draft = self.home_page.apply_to_config(draft)
         draft = self.shortcuts_page.apply_to_config(draft)
@@ -142,38 +137,42 @@ class MainWindow(QMainWindow):
             return
         self._cfg = draft
         self.home_page.set_config(draft)  # refresh the summary line
+        # Model / provider changes ride MurmurApp.reload_config's selective
+        # transcriber drop (#44, #46) — the next push-to-talk press picks
+        # up the new config without a relaunch.
         self.config_saved.emit(draft)
 
-        # Hotkey rebinding is the only remaining case where the in-process
-        # path is unsafe (pynput stop/start instability on macOS — see #38
-        # for the v1.1+ full hot-reload follow-up). Model and provider
-        # swaps now ride MurmurApp.reload_config's selective transcriber
-        # drop (PR #44), so the next push-to-talk press rebuilds from the
-        # new config without an os.execv. We still surface the shortcut-
-        # flavoured reason text — picked out by substring rather than
-        # index so a combined hotkey+model save tells the user about the
-        # part that's actually about to require the relaunch.
-        reasons = restart_reasons(previous, draft)
-        shortcut_reason = next((r for r in reasons if "shortcut" in r), None)
-        if shortcut_reason is not None:
-            self._notify_and_relaunch(shortcut_reason)
+        if previous_hotkey != draft.hotkey:
+            self._prompt_restart_for_hotkey()
 
-    def _notify_and_relaunch(self, reason: str) -> None:
-        """Surface a tray notification and schedule the relaunch.
+    def _prompt_restart_for_hotkey(self) -> None:
+        """Ask the user before relaunching to bind the new hotkey.
 
-        Two-step so the OS has a chance to paint the banner before we
-        replace the process image. ``_tray`` is None in tests; in that
-        case we skip the notification and still schedule the relaunch
-        (delay 0 ms in tests via ``restart_delay_ms``).
+        Hotkey changes need a process restart in production — see this
+        module's docstring for why. We default the dialog to Cancel so a
+        stray Enter (often the one that just committed the new hotkey
+        recorder) doesn't auto-fire the relaunch. That was the original
+        complaint behind PR #39's switch to a tray notification, which
+        in turn caused the silent-quit problem this dialog now solves.
         """
-        if self._tray is not None:
-            self._tray.showMessage(
-                "Murmur",
-                f"Restarting to apply {reason}…",
-                QSystemTrayIcon.MessageIcon.Information,
-                3000,
-            )
-        QTimer.singleShot(self._restart_delay_ms, self._relaunch_fn)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle("Restart Murmur?")
+        box.setText("The new hotkey is saved.")
+        box.setInformativeText(
+            "Murmur needs to restart for it to take effect.\n\n"
+            "Choose Cancel to keep using your previous hotkey for now — "
+            "the new one will activate the next time Murmur starts."
+        )
+        cancel_btn = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        restart_btn = box.addButton(
+            "Restart now", QMessageBox.ButtonRole.AcceptRole
+        )
+        # Default = Cancel: a stray Enter must not auto-fire the relaunch.
+        box.setDefaultButton(cancel_btn)
+        box.exec()
+        if box.clickedButton() is restart_btn:
+            self._relaunch_fn()
 
     # ----- Window behavior ------------------------------------------------
 

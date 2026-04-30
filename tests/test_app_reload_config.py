@@ -1,11 +1,11 @@
 """MurmurApp.reload_config is selective.
 
-Pure toggle saves (auto_paste, show_hud, play_beeps, language) must not
-restart the pynput listener and must not drop the cached transcriber —
-this is what avoids the known pynput stop/start instability on macOS
-(see #43 and the ``restart.py`` docstring). Hotkey changes still trigger
-a listener rebind; backend / cloud_provider_id / model changes still
-drop the transcriber.
+Pure toggle saves (auto_paste, show_hud, play_beeps, language) must
+not touch the hotkey listener and must not drop the cached transcriber.
+Backend / cloud_provider_id / model changes drop the cached transcriber
+so the next press rebuilds it. Hotkey changes are applied via a
+user-confirmed restart in the main window — they do NOT call into the
+running listener (#38), so reload_config is a no-op for that axis.
 """
 from __future__ import annotations
 
@@ -60,7 +60,10 @@ def test_show_hud_toggle_does_not_touch_hotkey_or_transcriber():
     start_mock.assert_not_called()
 
 
-def test_hotkey_change_restarts_listener():
+def test_hotkey_change_is_a_noop_for_the_running_listener():
+    """Hotkey rebinding lives in the main-window restart modal, not here.
+    reload_config must not stop, start, or replace_spec the listener for
+    a hotkey change — both prior attempts to do so failed in production."""
     cfg = Config(hotkey="<right_alt>")
     app = _build_app(cfg)
     pre_hotkey = app._hotkey
@@ -70,10 +73,14 @@ def test_hotkey_change_restarts_listener():
     with patch.object(MurmurApp, "start") as start_mock:
         app.reload_config(new_cfg)
 
-    pre_hotkey.stop.assert_called_once()
-    start_mock.assert_called_once()
-    # Hotkey change alone should not invalidate the transcriber.
+    pre_hotkey.stop.assert_not_called()
+    pre_hotkey.replace_spec.assert_not_called()
+    start_mock.assert_not_called()
+    assert app._hotkey is pre_hotkey
+    # Hotkey change alone must not invalidate the transcriber.
     assert app._transcriber is pre_transcriber
+    # Config is still updated — the modal will read it on relaunch.
+    assert app.cfg.hotkey == "<f13>"
 
 
 def test_local_model_change_drops_transcriber_only():
@@ -130,7 +137,9 @@ def test_openai_model_change_drops_transcriber():
     start_mock.assert_not_called()
 
 
-def test_combined_hotkey_and_model_change_does_both():
+def test_combined_hotkey_and_model_change_drops_transcriber_only():
+    """Combined save: model change drops transcriber, hotkey change is
+    a no-op here (handled by the main-window modal)."""
     cfg = Config(
         backend="local",
         hotkey="<right_alt>",
@@ -147,8 +156,8 @@ def test_combined_hotkey_and_model_change_does_both():
     with patch.object(MurmurApp, "start") as start_mock:
         app.reload_config(new_cfg)
 
-    pre_hotkey.stop.assert_called_once()
-    start_mock.assert_called_once()
+    pre_hotkey.stop.assert_not_called()
+    start_mock.assert_not_called()
     assert app._transcriber is None
 
 
