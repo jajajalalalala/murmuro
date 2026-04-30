@@ -1,4 +1,9 @@
-"""Restart prompt: reason builder + main-window integration."""
+"""Restart logic: reason builder + main-window integration.
+
+The user-visible flow used to be a modal "Restart Now / Cancel" dialog —
+that's gone (see #37). The integration tests here now cover the tray-
+notification-then-auto-relaunch path; the modal-flow tests are removed.
+"""
 from __future__ import annotations
 
 import os
@@ -10,7 +15,8 @@ pytest.importorskip("PySide6")
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtTest import QTest  # noqa: E402
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon  # noqa: E402
 
 from murmur import config as config_mod  # noqa: E402
 from murmur.main_window import MainWindow  # noqa: E402
@@ -24,6 +30,20 @@ def qapp():
 
 def _cfg() -> config_mod.Config:
     return config_mod.Config()
+
+
+class _FakeTray:
+    def __init__(self) -> None:
+        self.messages: list[tuple[str, str, object, int]] = []
+
+    def showMessage(  # noqa: N802 (Qt API)
+        self,
+        title: str,
+        body: str,
+        icon: object = QSystemTrayIcon.MessageIcon.Information,
+        msecs: int = 0,
+    ) -> None:
+        self.messages.append((title, body, icon, msecs))
 
 
 # ---------- pure logic --------------------------------------------------
@@ -87,15 +107,18 @@ def test_provider_change_takes_precedence_over_model_field():
 # ---------- main_window integration -------------------------------------
 
 
-def test_persist_triggers_prompt_on_model_change(qapp, tmp_path):
+def test_persist_triggers_tray_notification_on_model_change(qapp):
     saved: list[config_mod.Config] = []
-    prompts: list[str] = []
+    relaunches: list[None] = []
+    tray = _FakeTray()
 
     cfg = _cfg()
     win = MainWindow(
         cfg,
         save_config=saved.append,
-        confirm_restart_fn=lambda reason, parent=None, **_: prompts.append(reason) or False,
+        tray=tray,
+        relaunch_fn=lambda: relaunches.append(None),
+        restart_delay_ms=0,
     )
 
     # Simulate the user changing the local model on the Models page.
@@ -103,24 +126,33 @@ def test_persist_triggers_prompt_on_model_change(qapp, tmp_path):
     win._persist_changes()
 
     assert saved and saved[-1].local.model == "small"
-    assert prompts == ["the model change"]
+    assert tray.messages, "tray notification was not surfaced"
+    _title, body, _icon, _msecs = tray.messages[-1]
+    assert "the model change" in body
+    QTest.qWait(20)
+    assert relaunches, "relaunch_fn was never invoked"
 
 
-def test_persist_no_prompt_when_only_unrelated_pref_changes(qapp):
+def test_persist_no_notification_when_only_unrelated_pref_changes(qapp):
     saved: list[config_mod.Config] = []
-    prompts: list[str] = []
+    relaunches: list[None] = []
+    tray = _FakeTray()
 
     cfg = _cfg()
     original_auto_paste = cfg.auto_paste
     win = MainWindow(
         cfg,
         save_config=saved.append,
-        confirm_restart_fn=lambda reason, parent=None, **_: prompts.append(reason) or False,
+        tray=tray,
+        relaunch_fn=lambda: relaunches.append(None),
+        restart_delay_ms=0,
     )
 
     # Toggle auto-paste — config persists but no restart should be requested.
     win.home_page.auto_paste.setChecked(not original_auto_paste)
     win._persist_changes()
 
+    QTest.qWait(20)
     assert saved and saved[-1].auto_paste != original_auto_paste
-    assert prompts == []
+    assert tray.messages == []
+    assert relaunches == []

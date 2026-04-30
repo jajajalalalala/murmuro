@@ -22,9 +22,14 @@ def qapp():
     yield QApplication.instance() or QApplication(sys.argv)
 
 
-def _silent_restart(*_args, **_kwargs) -> bool:
-    """Stub for tests — never actually pop a modal QMessageBox or relaunch."""
-    return False
+class _FakeTray:
+    """Minimal stand-in for QSystemTrayIcon — records showMessage calls."""
+
+    def __init__(self) -> None:
+        self.messages: list[tuple[str, str]] = []
+
+    def showMessage(self, title: str, body: str, *_args, **_kwargs) -> None:  # noqa: N802
+        self.messages.append((title, body))
 
 
 def _make_cfg() -> config_mod.Config:
@@ -113,7 +118,8 @@ def test_recording_a_new_hotkey_persists_via_apply(qapp):
     win = MainWindow(
         _make_cfg(),
         save_config=saved.append,
-        confirm_restart_fn=_silent_restart,
+        relaunch_fn=lambda: None,
+        restart_delay_ms=0,
     )
     # Simulate the recorder having captured a new spec, then trigger persist
     # by toggling the auto-paste checkbox (the simplest real signal).
@@ -131,7 +137,8 @@ def test_recorder_commit_alone_persists_new_hotkey(qapp):
     win = MainWindow(
         _make_cfg(),
         save_config=saved.append,
-        confirm_restart_fn=_silent_restart,
+        relaunch_fn=lambda: None,
+        restart_delay_ms=0,
     )
     # Drive the recorder through its real commit path — same code the
     # keyPressEvent handler runs after a non-modifier keypress.
@@ -145,7 +152,8 @@ def test_blank_hotkey_falls_back_to_existing_value(qapp):
     win = MainWindow(
         _make_cfg(),
         save_config=saved.append,
-        confirm_restart_fn=_silent_restart,
+        relaunch_fn=lambda: None,
+        restart_delay_ms=0,
     )
     win.shortcuts_page.hotkey_recorder.set_value("")
     win.home_page.auto_paste.setChecked(False)
@@ -174,3 +182,75 @@ def test_close_event_hides_instead_of_quitting(qapp):
     win.show()
     win.close()
     assert not win.isVisible()
+
+
+def test_hotkey_change_surfaces_tray_notification_and_relaunches(qapp):
+    """Replacing the modal dialog: a hotkey change should fire a tray
+    notification with the reason text, save the config, then call the
+    relaunch function once the QTimer fires."""
+    from PySide6.QtTest import QTest
+
+    saved: list[config_mod.Config] = []
+    relaunches: list[None] = []
+    tray = _FakeTray()
+
+    win = MainWindow(
+        _make_cfg(),
+        save_config=saved.append,
+        tray=tray,
+        relaunch_fn=lambda: relaunches.append(None),
+        restart_delay_ms=0,
+    )
+    win.shortcuts_page.hotkey_recorder._commit("<f9>")
+
+    # Config persisted before any restart machinery runs.
+    assert saved and saved[-1].hotkey == "<f9>"
+    # Tray notification surfaced with the reason verbatim.
+    assert tray.messages, "tray.showMessage was never called"
+    title, body = tray.messages[-1]
+    assert title == "Murmur"
+    assert "the shortcut change" in body
+    # Drain the event loop so the 0 ms QTimer fires.
+    QTest.qWait(20)
+    assert relaunches, "relaunch_fn was never called after the timer fired"
+
+
+def test_unrelated_change_does_not_relaunch(qapp):
+    """Toggling auto-paste must not surface a tray notification or
+    schedule a relaunch — only model/provider/hotkey changes do."""
+    from PySide6.QtTest import QTest
+
+    saved: list[config_mod.Config] = []
+    relaunches: list[None] = []
+    tray = _FakeTray()
+
+    win = MainWindow(
+        _make_cfg(),
+        save_config=saved.append,
+        tray=tray,
+        relaunch_fn=lambda: relaunches.append(None),
+        restart_delay_ms=0,
+    )
+    win.home_page.auto_paste.setChecked(False)
+
+    QTest.qWait(20)
+    assert saved and saved[-1].auto_paste is False
+    assert tray.messages == []
+    assert relaunches == []
+
+
+def test_relaunch_works_without_tray(qapp):
+    """Tests don't always wire a tray; the relaunch path must still fire."""
+    from PySide6.QtTest import QTest
+
+    relaunches: list[None] = []
+    win = MainWindow(
+        _make_cfg(),
+        save_config=lambda _c: None,
+        tray=None,
+        relaunch_fn=lambda: relaunches.append(None),
+        restart_delay_ms=0,
+    )
+    win.shortcuts_page.hotkey_recorder._commit("<f9>")
+    QTest.qWait(20)
+    assert relaunches, "relaunch_fn was never called when tray was None"

@@ -15,7 +15,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Callable
 
-from PySide6.QtCore import QSize, Signal
+from PySide6.QtCore import QSize, QTimer, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QStackedWidget,
+    QSystemTrayIcon,
     QWidget,
 )
 
@@ -33,7 +34,7 @@ from .pages.about import AboutPage
 from .pages.home import HomePage
 from .pages.models import ModelsPage
 from .pages.shortcuts import ShortcutsPage
-from .restart import confirm_restart, restart_reasons
+from .restart import _default_relaunch, restart_reasons
 from .ui.theme import scroll_wrap
 
 _log = get_logger("main_window")
@@ -49,13 +50,22 @@ class MainWindow(QMainWindow):
         cfg: config_mod.Config,
         save_config: Callable[[config_mod.Config], None] | None = None,
         parent: QWidget | None = None,
-        confirm_restart_fn: Callable[..., bool] | None = None,
+        tray: QSystemTrayIcon | None = None,
+        relaunch_fn: Callable[[], None] | None = None,
+        restart_delay_ms: int = 800,
     ) -> None:
         super().__init__(parent)
         self._cfg = cfg
         self._save_config = save_config or config_mod.save
+        # Tray is owned by the host (run_tray); we hold a reference so we
+        # can surface a notification before relaunching. None in tests.
+        self._tray = tray
         # Injectable for tests so we don't actually re-exec.
-        self._confirm_restart = confirm_restart_fn or confirm_restart
+        self._relaunch_fn = relaunch_fn or _default_relaunch
+        # Window between the tray notification appearing and the relaunch
+        # firing. Long enough for the OS to actually paint the banner, short
+        # enough that the user doesn't keep typing into the about-to-die app.
+        self._restart_delay_ms = restart_delay_ms
 
         self.setWindowTitle("Murmur")
         self.resize(QSize(760, 520))
@@ -135,11 +145,34 @@ class MainWindow(QMainWindow):
         self.config_saved.emit(draft)
 
         # If the change is one we'd rather apply via a clean relaunch
-        # (model swap, provider swap, hotkey rebinding), ask the user.
-        # Cancelling leaves the change saved on disk for the next launch.
+        # (model swap, provider swap, hotkey rebinding), surface a tray
+        # notification and auto-relaunch. Previously this was a modal
+        # "Restart Now / Cancel" dialog whose default button could be
+        # auto-activated by a trailing Enter keypress (the same Enter that
+        # had just committed the new hotkey or model selection), making
+        # the app appear to vanish without warning. The change is already
+        # saved on disk before we get here, so even if the relaunch is
+        # somehow missed the new value takes effect on next launch.
         reasons = restart_reasons(previous, draft)
         if reasons:
-            self._confirm_restart(reasons[0], self)
+            self._notify_and_relaunch(reasons[0])
+
+    def _notify_and_relaunch(self, reason: str) -> None:
+        """Surface a tray notification and schedule the relaunch.
+
+        Two-step so the OS has a chance to paint the banner before we
+        replace the process image. ``_tray`` is None in tests; in that
+        case we skip the notification and still schedule the relaunch
+        (delay 0 ms in tests via ``restart_delay_ms``).
+        """
+        if self._tray is not None:
+            self._tray.showMessage(
+                "Murmur",
+                f"Restarting to apply {reason}…",
+                QSystemTrayIcon.MessageIcon.Information,
+                3000,
+            )
+        QTimer.singleShot(self._restart_delay_ms, self._relaunch_fn)
 
     # ----- Window behavior ------------------------------------------------
 

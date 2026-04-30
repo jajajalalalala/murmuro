@@ -182,7 +182,7 @@ def run_tray(cfg: config_mod.Config) -> int:
     tray.setContextMenu(menu)
     tray.show()
 
-    main_window = MainWindow(cfg)
+    main_window = MainWindow(cfg, tray=tray)
     # Open the window on launch so the user lands somewhere they can see —
     # the tray icon alone is easy to miss, especially on first install.
     main_window.show()
