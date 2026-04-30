@@ -24,8 +24,8 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QCloseEvent, QMouseEvent, QPixmap
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QCloseEvent, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -139,10 +139,10 @@ class MainWindow(QMainWindow):
         rail.setObjectName("rail")
         rail.setFixedWidth(170)
         rail_layout = QVBoxLayout(rail)
-        # Bottom margin: 24 px so the About row sits well clear of the
-        # window bezel. With only 12 px the row was reading as visually
-        # truncated against the rounded bottom corner.
-        rail_layout.setContentsMargins(0, 0, 0, 24)
+        # Bottom margin: 32 px so the About row sits well clear of the
+        # window's rounded bottom corner. 24 still rendered as clipped
+        # against the bezel on the user's display.
+        rail_layout.setContentsMargins(0, 0, 0, 32)
         rail_layout.setSpacing(0)
 
         rail_layout.addWidget(self._build_brand_header())
@@ -194,49 +194,9 @@ class MainWindow(QMainWindow):
         # MainWindow re-applies the global stylesheet.
         self.home_page.theme_toggle_requested.connect(self.set_theme)
 
-        # Window-drag plumbing: the brand header is the drag handle but
-        # we route all mouse events through a QApplication-level event
-        # filter rather than per-widget handlers (the per-widget
-        # handlers never fired in the bundled .app for reasons we
-        # never pinned down). The filter region-checks each press
-        # against the brand header's rect, records the offset relative
-        # to the window's top-left, and moves the window on each
-        # subsequent QMouseEvent until release.
-        self._drag_offset = None
-        app = QApplication.instance()
-        if app is not None:
-            app.installEventFilter(self)
-
-    # ----- Event handling -------------------------------------------------
-
-    def eventFilter(self, obj, event):  # noqa: N802 (Qt API)
-        """Global mouse filter that drags the window from the brand header.
-
-        Runs before any widget-level handler, so child widgets eating
-        the press doesn't matter — we still see it here. Returns
-        ``False`` so events continue normal dispatch (this filter
-        observes; it doesn't consume).
-        """
-        et = event.type()
-        if et == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):
-            if (
-                event.button() == Qt.MouseButton.LeftButton
-                and self._brand_header is not None
-                and self._brand_header.isVisible()
-            ):
-                global_pos = event.globalPosition().toPoint()
-                local = self._brand_header.mapFromGlobal(global_pos)
-                if self._brand_header.rect().contains(local):
-                    self._drag_offset = global_pos - self.pos()
-        elif et == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
-            if (
-                self._drag_offset is not None
-                and event.buttons() & Qt.MouseButton.LeftButton
-            ):
-                self.move(event.globalPosition().toPoint() - self._drag_offset)
-        elif et == QEvent.Type.MouseButtonRelease:
-            self._drag_offset = None
-        return super().eventFilter(obj, event)
+        # Window dragging is now handled natively by AppKit — the
+        # standard title bar is back (just styled to blend with the
+        # rail). No Qt-side drag plumbing needed.
 
     # ----- Construction helpers -------------------------------------------
 
@@ -262,9 +222,13 @@ class MainWindow(QMainWindow):
         """
         header = QWidget(self)
         header.setObjectName("brandHeader")
-        header.setFixedHeight(64)
+        header.setFixedHeight(48)
+        # No 28-px top padding any more: with the standard title bar
+        # back, traffic lights live in their own strip above the
+        # brand header. The header just needs comfortable side and
+        # vertical breathing room.
         layout = QHBoxLayout(header)
-        layout.setContentsMargins(16, 28, 16, 0)
+        layout.setContentsMargins(16, 12, 16, 0)
         layout.setSpacing(10)
 
         self._brand_glyph = QLabel()
@@ -390,20 +354,30 @@ class MainWindow(QMainWindow):
             self._titlebar_styled = True
 
     def _configure_macos_titlebar(self) -> None:
-        """Hide the macOS title bar so content extends to the very top of
-        the window. Traffic-light buttons stay (the user can still close
-        / minimize / maximize). The 28 px top padding in the brand
-        header reserves space so the icon + wordmark sit below the
-        traffic-light overlay area.
+        """Style the macOS title bar to blend with the rail.
 
-        No-ops on non-macOS platforms and silently degrades if pyobjc
-        isn't installed — falling back to the default title bar in that
-        case is preferable to crashing on start.
+        Earlier versions used ``NSWindowStyleMaskFullSizeContentView``
+        to extend content behind a transparent title bar, plus a
+        QApplication-level event filter to make the brand header drag
+        the window. After three rebuilds the user reported drag still
+        didn't work. ``FullSizeContentView`` + Qt's giant NSView
+        appears to interfere with AppKit's hit-testing in ways that
+        break both AppKit's native drag *and* Qt's mouse dispatch.
 
-        Also bails out under any non-cocoa Qt platform (offscreen,
-        minimal, etc.) — winId() there returns a non-NSView pointer
-        and dereferencing it segfaults the test runner. The HUD has the
-        same guard for the same reason.
+        New approach: leave the standard title bar in place (so AppKit
+        drags the window natively) but style it so it doesn't read as
+        a foreign element:
+
+        - ``setTitleVisibility:NSWindowTitleHidden`` hides the
+          ``"Murmur"`` text the user flagged.
+        - ``setTitlebarAppearsTransparent:YES`` removes the title-bar
+          chrome line so it reads as one continuous strip with the
+          window content.
+        - ``setBackgroundColor:`` ties the strip's color to the
+          active palette's rail, so the result looks like the rail
+          extending up to the traffic lights.
+
+        Bails out cleanly off-cocoa (offscreen tests, non-macOS).
         """
         if sys.platform != "darwin":
             return
@@ -412,7 +386,7 @@ class MainWindow(QMainWindow):
             return
         try:
             import objc
-            from AppKit import NSColor, NSWindowStyleMaskFullSizeContentView
+            from AppKit import NSColor
         except ImportError:
             _log.info("pyobjc not available; keeping default title bar")
             return
@@ -427,23 +401,13 @@ class MainWindow(QMainWindow):
             window.setTitlebarAppearsTransparent_(True)
             # NSWindowTitleHidden = 1
             window.setTitleVisibility_(1)
-            window.setStyleMask_(
-                window.styleMask() | NSWindowStyleMaskFullSizeContentView,
-            )
-            # Match the NSWindow background to the rail color so the
-            # 28-px traffic-light zone above the brand header blends in
-            # rather than showing macOS's default neutral gray. Without
-            # this the user sees a clear gray strip at the top of the
-            # window even though we asked for a transparent title bar.
             r, g, b = _palette_rail_rgb(self._active_palette)
             window.setBackgroundColor_(
                 NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, 1.0),
             )
-            # Window dragging is handled by the QApplication-level
-            # event filter on this MainWindow (see ``eventFilter``).
-            # We don't need ``setMovableByWindowBackground:true`` here
-            # — and turning it on would race the Qt drag against
-            # AppKit's drag pipeline in unpredictable ways.
+            # Native title-bar drag is back on (we no longer set
+            # FullSizeContentView), so AppKit handles window movement
+            # without any Qt-side help.
         except Exception as e:  # noqa: BLE001
             _log.warning("could not configure macOS title bar: %s", e)
 
