@@ -52,15 +52,21 @@ def test_window_constructs_with_four_pages(qapp):
 
 
 def test_transcript_entry_includes_timestamp(qapp):
-    """Each Home transcript row carries an HH:MM prefix and the raw text."""
+    """Each Home transcript row carries an HH:MM timestamp + the raw text.
+
+    Post-redesign, the user-visible row is a custom widget rather than
+    the QListWidgetItem's painted text — so we assert against the data
+    roles (UserRole = raw text, UserRole+1 = timestamp) instead of
+    ``item.text()`` (which is empty by design now).
+    """
     from datetime import datetime
     win = MainWindow(_make_cfg(), save_config=lambda _c: None)
     when = datetime(2026, 4, 26, 14, 32, 5)
     win.append_transcript("hello world")  # uses now()
     win.home_page.add_transcript("test entry", when=when)
     item = win.home_page._list.item(0)  # newest first
-    assert item.text() == "14:32\ntest entry"
-    assert item.data(0x0100) == "test entry"  # raw text retained for copy
+    assert item.data(0x0100) == "test entry"      # Qt.UserRole
+    assert item.data(0x0100 + 1) == "14:32"       # UserRole + 1 = timestamp
 
 
 def test_state_pushes_into_home(qapp):
@@ -77,8 +83,8 @@ def test_appended_transcripts_keep_only_last_n(qapp):
         win.append_transcript(f"line {i}")
     # MAX_TRANSCRIPTS = 5 in HomePage.
     assert win.home_page._list.count() == 5
-    # Newest is on top.
-    assert "line 6" in win.home_page._list.item(0).text()
+    # Newest is on top — raw text lives in UserRole now (post-redesign).
+    assert win.home_page._list.item(0).data(0x0100) == "line 6"
 
 
 def test_toggling_auto_paste_persists_and_emits(qapp):

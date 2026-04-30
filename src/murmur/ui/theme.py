@@ -1,21 +1,21 @@
 """Murmur visual theme.
 
-Single accent color (violet), explicit light/dark palettes that tune
-readability under both system themes, and a small set of helper
-factories so pages can produce styled chrome (cards, section labels,
-primary buttons) without hand-rolling stylesheets.
+Single accent color (warm terracotta orange), explicit light/dark
+palettes, and a small set of helper factories so pages can produce
+styled chrome (cards, titles, primary buttons) without hand-rolling
+stylesheets.
 
 The accent appears in:
 
 * the left-rail's selected row,
 * primary action buttons (Record, Restart Now, Use, Download),
 * focus rings on text fields / dropdowns,
-* the section-label underline accent.
+* the checkbox indicator fill.
 
 Both palettes deliberately push surface and text further apart than
-the Qt default — the original UI was ~unreadable in dark mode because
-section labels and "mid"-toned subtitles ended up nearly indistinguishable
-from the window background.
+the Qt default — section labels and "mid"-toned subtitles otherwise
+end up nearly indistinguishable from the window background in dark
+mode.
 """
 from __future__ import annotations
 
@@ -27,16 +27,22 @@ from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton, QWidget
 
 # ---- Accent ---------------------------------------------------------------
 
-ACCENT = "#7c5cff"        # violet, primary action / selection
-ACCENT_HOVER = "#9079ff"
-ACCENT_PRESSED = "#6447e6"
+# Warm terracotta orange — picked to read as "premium" rather than
+# "Tailwind orange-500 toy app." Saturated enough to anchor the UI on
+# either light or dark surfaces, muted enough that it doesn't fight the
+# eye next to neutral text.
+ACCENT = "#dd6f3a"        # primary action / selection
+ACCENT_HOVER = "#e8865a"
+ACCENT_PRESSED = "#b85525"
 ACCENT_TEXT = "#ffffff"   # text on accent backgrounds
 
 # State dot colors — punchier than Qt defaults, readable on either surface.
+# BUSY moved off amber so it doesn't fight the new orange accent.
 STATE_IDLE = "#94a3b8"      # slate-400
 STATE_RECORDING = "#ef4444" # red-500
-STATE_BUSY = "#f59e0b"      # amber-500
+STATE_BUSY = "#0ea5e9"      # sky-500
 STATE_OK = "#10b981"        # emerald-500
+STATE_DANGER = "#ef4444"    # destructive button text
 
 
 @dataclass(frozen=True)
@@ -55,32 +61,37 @@ class Palette:
     rail_selected_text: str
 
 
+# Light palette: warm-neutral creams (no purple tint) that complement
+# the terracotta accent rather than fighting it.
 LIGHT = Palette(
     name="light",
-    window="#f6f5fb",
+    window="#faf7f3",
     surface="#ffffff",
-    surface_alt="#f1eef9",
-    border="#e2dff0",
-    text="#1b1530",
-    text_dim="#5a5475",
-    text_muted="#8a839f",
-    rail_bg="#ece8f7",
-    rail_text="#3a3458",
+    surface_alt="#f3ede5",
+    border="#e7dfd3",
+    text="#1f1a14",
+    text_dim="#5d564c",
+    text_muted="#8b8478",
+    rail_bg="#f1ebe2",
+    rail_text="#3d3730",
     rail_selected_bg=ACCENT,
     rail_selected_text=ACCENT_TEXT,
 )
 
+# Dark palette: deep warm-neutral charcoals with a faint warm undertone.
+# Pure-black or blue-tinted darks make the orange accent look gaudy;
+# warm-neutral darks let it sit naturally.
 DARK = Palette(
     name="dark",
-    window="#15131e",
-    surface="#1f1c2c",
-    surface_alt="#272338",
-    border="#322d48",
-    text="#ece9f7",
-    text_dim="#b6b0d0",
-    text_muted="#867fa3",
-    rail_bg="#1a1726",
-    rail_text="#cbc4e6",
+    window="#171411",
+    surface="#211d18",
+    surface_alt="#2b2620",
+    border="#37312a",
+    text="#f1ece4",
+    text_dim="#b8aea0",
+    text_muted="#857d72",
+    rail_bg="#1c1813",
+    rail_text="#d4cbbe",
     rail_selected_bg=ACCENT,
     rail_selected_text=ACCENT_TEXT,
 )
@@ -155,19 +166,32 @@ def _stylesheet(p: Palette) -> str:
         background: {p.window};
     }}
 
+    /* Brand header at the top of the left rail */
+    QWidget#brandHeader {{
+        background: {p.rail_bg};
+        border-right: 1px solid {p.border};
+        border-bottom: 1px solid {p.border};
+    }}
+    QLabel#brandText {{
+        color: {p.text};
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+    }}
+
     /* Left-rail navigation */
     QListWidget#nav {{
         background: {p.rail_bg};
         color: {p.rail_text};
         border: none;
         border-right: 1px solid {p.border};
-        padding: 16px 8px;
+        padding: 12px 8px;
         outline: 0;
     }}
     QListWidget#nav::item {{
         padding: 10px 14px;
         margin: 2px 4px;
-        border-radius: 6px;
+        border-radius: 8px;
         color: {p.rail_text};
     }}
     QListWidget#nav::item:hover {{
@@ -185,12 +209,21 @@ def _stylesheet(p: Palette) -> str:
         border-radius: 10px;
     }}
 
-    /* Section + hint labels */
+    /* Card titles (sentence-case, replaces the small-caps section
+       labels for primary card headings — those felt heavy/bureaucratic
+       when stacked four to a page). */
+    QLabel[cardTitle="true"] {{
+        color: {p.text};
+        font-size: 14px;
+        font-weight: 600;
+    }}
+    /* Section labels stay for true page-level eyebrows; tone them down
+       so they read as metadata, not chapter dividers. */
     QLabel[section="true"] {{
-        color: {ACCENT};
+        color: {p.text_muted};
         font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.06em;
+        font-weight: 600;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
         padding-top: 4px;
     }}
@@ -201,10 +234,18 @@ def _stylesheet(p: Palette) -> str:
     QLabel[dim="true"] {{
         color: {p.text_dim};
     }}
+    QLabel[mono="true"] {{
+        font-family: "SF Mono", "JetBrains Mono", "Menlo", monospace;
+        font-size: 11px;
+        color: {p.text_dim};
+    }}
 
-    /* Buttons */
+    /* Buttons — three tiers:
+       - default: ghost (transparent border, surface background on hover)
+       - primary: filled accent
+       - destructive: ghost with red text on hover */
     QPushButton {{
-        background: {p.surface};
+        background: transparent;
         color: {p.text};
         border: 1px solid {p.border};
         border-radius: 6px;
@@ -215,7 +256,7 @@ def _stylesheet(p: Palette) -> str:
     }}
     QPushButton:disabled {{
         color: {p.text_muted};
-        background: {p.surface};
+        border-color: {p.border};
     }}
     QPushButton[primary="true"] {{
         background: {ACCENT};
@@ -235,9 +276,33 @@ def _stylesheet(p: Palette) -> str:
         color: {p.text_muted};
         border-color: {p.border};
     }}
+    QPushButton[destructive="true"] {{
+        color: {p.text_dim};
+        border: 1px solid {p.border};
+        background: transparent;
+    }}
+    QPushButton[destructive="true"]:hover {{
+        color: {STATE_DANGER};
+        border-color: {STATE_DANGER};
+        background: transparent;
+    }}
+    /* The small × clear button on the hotkey field — borderless, dim,
+       hover red. setProperty("clear", True) marks it. */
+    QPushButton[clear="true"] {{
+        background: transparent;
+        border: none;
+        color: {p.text_muted};
+        font-size: 16px;
+        padding: 0 6px;
+        min-width: 22px;
+        min-height: 22px;
+    }}
+    QPushButton[clear="true"]:hover {{
+        color: {STATE_DANGER};
+    }}
 
     /* Inputs */
-    QLineEdit, QComboBox, QAbstractSpinBox {{
+    QLineEdit, QAbstractSpinBox {{
         background: {p.surface};
         color: {p.text};
         border: 1px solid {p.border};
@@ -246,8 +311,38 @@ def _stylesheet(p: Palette) -> str:
         selection-background-color: {ACCENT};
         selection-color: {ACCENT_TEXT};
     }}
-    QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus {{
+    QLineEdit:focus, QAbstractSpinBox:focus {{
         border: 1px solid {ACCENT};
+    }}
+
+    /* QComboBox: drop the visible inner divider between the field and
+       the drop-down arrow (Qt's default leaves a vertical line on the
+       right that didn't follow the rounded radius — the "cut by force"
+       look). The combobox is now one continuous rounded surface. */
+    QComboBox {{
+        background: {p.surface};
+        color: {p.text};
+        border: 1px solid {p.border};
+        border-radius: 6px;
+        padding: 5px 8px;
+        padding-right: 28px;  /* room for the chevron */
+        selection-background-color: {ACCENT};
+        selection-color: {ACCENT_TEXT};
+    }}
+    QComboBox:focus {{
+        border: 1px solid {ACCENT};
+    }}
+    QComboBox::drop-down {{
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 24px;
+        border: none;
+        background: transparent;
+        margin: 0 4px 0 0;
+    }}
+    QComboBox::down-arrow {{
+        width: 10px;
+        height: 10px;
     }}
     QComboBox QAbstractItemView {{
         background: {p.surface};
@@ -255,6 +350,9 @@ def _stylesheet(p: Palette) -> str:
         selection-background-color: {ACCENT};
         selection-color: {ACCENT_TEXT};
         border: 1px solid {p.border};
+        border-radius: 6px;
+        outline: 0;
+        padding: 4px;
     }}
 
     /* Lists / tables */
@@ -264,6 +362,14 @@ def _stylesheet(p: Palette) -> str:
         border: 1px solid {p.border};
         border-radius: 8px;
         outline: 0;
+    }}
+    QListWidget::item {{
+        padding: 8px 12px;
+        border-radius: 6px;
+        margin: 2px 4px;
+    }}
+    QListWidget::item:hover {{
+        background: {p.surface_alt};
     }}
     QListWidget::item:selected, QTableWidget::item:selected {{
         background: {ACCENT};
@@ -275,6 +381,23 @@ def _stylesheet(p: Palette) -> str:
         border: none;
         padding: 6px 10px;
         font-weight: 600;
+    }}
+
+    /* Transcripts list — drop the inherited item padding so the row
+       widget's own internal layout fully controls its height. The
+       padding/margin in the generic ::item rule above otherwise eats
+       into the widget area and short transcripts render squished. */
+    QListWidget#transcripts::item {{
+        padding: 0;
+        margin: 0;
+        border-radius: 0;
+    }}
+    QListWidget#transcripts::item:hover {{
+        background: {p.surface_alt};
+    }}
+    QListWidget#transcripts::item:selected {{
+        background: {p.surface_alt};
+        color: {p.text};
     }}
 
     /* Progress bars (model downloads) */
@@ -292,10 +415,35 @@ def _stylesheet(p: Palette) -> str:
         border-radius: 5px;
     }}
 
-    /* Checkboxes */
+    /* Checkboxes — custom indicator so they no longer look like the
+       Office-software defaults. 16x16 rounded square; border-only when
+       unchecked, accent-filled with a white tick when checked. */
     QCheckBox {{
-        spacing: 8px;
+        spacing: 10px;
         color: {p.text};
+    }}
+    QCheckBox::indicator {{
+        width: 16px;
+        height: 16px;
+        border: 1.5px solid {p.text_muted};
+        border-radius: 4px;
+        background: {p.surface};
+    }}
+    QCheckBox::indicator:hover {{
+        border-color: {ACCENT};
+    }}
+    QCheckBox::indicator:checked {{
+        background: {ACCENT};
+        border-color: {ACCENT};
+        image: url(:/qt-project.org/styles/commonstyle/images/standardbutton-apply-16.png);
+    }}
+    QCheckBox::indicator:checked:hover {{
+        background: {ACCENT_HOVER};
+        border-color: {ACCENT_HOVER};
+    }}
+    QCheckBox::indicator:disabled {{
+        border-color: {p.border};
+        background: {p.surface_alt};
     }}
 
     /* Scrollbars — keep them subtle */
@@ -328,9 +476,29 @@ def card() -> QFrame:
 
 
 def section_label(text: str) -> QLabel:
-    """A small caps accent label that introduces a card."""
+    """A small caps muted-text label for page-level eyebrows."""
     label = QLabel(text)
     label.setProperty("section", True)
+    return label
+
+
+def card_title(text: str) -> QLabel:
+    """Sentence-case bold title for the top of a card.
+
+    Replaces the previous small-caps accent treatment everywhere a
+    card needs a heading — that style now stays only on true page
+    eyebrows where the eye benefits from a quieter visual marker.
+    """
+    label = QLabel(text)
+    label.setProperty("cardTitle", True)
+    return label
+
+
+def mono_label(text: str) -> QLabel:
+    """A monospace label, used for paths and key specs in About."""
+    label = QLabel(text)
+    label.setProperty("mono", True)
+    label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     return label
 
 
@@ -346,6 +514,27 @@ def primary_button(text: str) -> QPushButton:
     """Accent-colored call-to-action button."""
     btn = QPushButton(text)
     btn.setProperty("primary", True)
+    return btn
+
+
+def destructive_button(text: str) -> QPushButton:
+    """Ghost button that hovers to red — for Delete-style actions.
+
+    Visually quieter than the primary button so destructive actions
+    don't compete with the safe ones (Use, Download).
+    """
+    btn = QPushButton(text)
+    btn.setProperty("destructive", True)
+    return btn
+
+
+def clear_button(text: str = "×") -> QPushButton:
+    """Borderless ×-style button with a dim/red hover. Used for the
+    hotkey field's clear affordance and any similar inline cancels."""
+    btn = QPushButton(text)
+    btn.setProperty("clear", True)
+    btn.setFlat(True)
+    btn.setCursor(Qt.CursorShape.PointingHandCursor)
     return btn
 
 

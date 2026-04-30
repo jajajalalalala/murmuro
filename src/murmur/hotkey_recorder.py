@@ -32,10 +32,10 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFocusEvent, QKeyEvent
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 from .fn_monitor import FnFocusMonitor
-from .ui.theme import ACCENT
+from .ui.theme import ACCENT, clear_button
 
 # ─────────────────────────────────────────────────────────────────────────────
 # macOS virtual keycodes
@@ -243,12 +243,11 @@ class HotkeyRecorder(QWidget):
         # text itself to enter capture mode.
         self._label.installEventFilter(self)
 
-        # × clear button. ToolButton keeps it visually compact next to the
-        # field and avoids inheriting the global QPushButton padding.
-        self._clear_button = QToolButton()
-        self._clear_button.setText("×")
+        # × clear button. Uses the theme's clear_button helper so the
+        # styling (borderless, dim text, hover-red) lives next to all
+        # other button variants instead of in a per-widget stylesheet.
+        self._clear_button = clear_button("×")
         self._clear_button.setToolTip("Clear hotkey")
-        self._clear_button.setAutoRaise(True)
         self._clear_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._clear_button.clicked.connect(self._clear)
 

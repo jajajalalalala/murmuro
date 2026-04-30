@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QProgressBar,
-    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -38,7 +37,7 @@ from .. import providers as providers_mod
 from .._logging import get_logger
 from ..providers import CloudProvider, LocalModel, find_local_model
 from ..transcribe.factory import _resolve_local_download_root
-from ..ui.theme import card, primary_button, section_label
+from ..ui.theme import card, destructive_button, primary_button, section_label
 
 _log = get_logger("models_page")
 
@@ -137,7 +136,9 @@ class _LocalModelRow(QFrame):
         # Secondary "Delete" button: removes the on-disk model files.
         # Hidden until the model is downloaded; disabled while it's the
         # active backend (would yank the rug from under a running app).
-        self._delete = QPushButton("Delete")
+        # Destructive styling so it doesn't compete visually with the
+        # primary Use / Download action.
+        self._delete = destructive_button("Delete")
         self._delete.clicked.connect(self._on_delete)
         self._delete.setVisible(False)
 

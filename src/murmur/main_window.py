@@ -21,16 +21,19 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Callable
+from pathlib import Path
 
-from PySide6.QtCore import QSize, QTimer, Signal
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QCloseEvent, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QLabel,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QStackedWidget,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -45,6 +48,10 @@ from .restart import _default_relaunch
 from .ui.theme import scroll_wrap
 
 _log = get_logger("main_window")
+
+# The icon ships with the repo at assets/icon.png — resolve once so unit
+# tests don't have to mock anything when constructing the main window.
+_ICON_PATH = Path(__file__).resolve().parents[2] / "assets" / "icon.png"
 
 
 class MainWindow(QMainWindow):
@@ -74,13 +81,23 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # --- Left rail -----------------------------------------------------
+        # --- Left rail (brand header + nav list) --------------------------
+        rail = QWidget()
+        rail.setObjectName("rail")
+        rail.setFixedWidth(170)
+        rail_layout = QVBoxLayout(rail)
+        rail_layout.setContentsMargins(0, 0, 0, 0)
+        rail_layout.setSpacing(0)
+
+        rail_layout.addWidget(self._build_brand_header())
+
         self._nav = QListWidget()
         self._nav.setObjectName("nav")
-        self._nav.setFixedWidth(170)
         for label in ("Home", "Shortcuts", "Models", "About"):
             self._nav.addItem(QListWidgetItem(label))
-        root.addWidget(self._nav)
+        rail_layout.addWidget(self._nav, 1)
+
+        root.addWidget(rail)
 
         # --- Pages ---------------------------------------------------------
         # Each page is wrapped in a scroll area so a small window can still
@@ -105,6 +122,41 @@ class MainWindow(QMainWindow):
         # compared to a full transcription cycle, so we don't debounce.
         for page in (self.home_page, self.shortcuts_page, self.models_page):
             page.preferences_changed.connect(self._persist_changes)
+
+    # ----- Construction helpers -------------------------------------------
+
+    def _build_brand_header(self) -> QWidget:
+        """Top-of-rail brand bar: app icon + 'Murmur' wordmark.
+
+        Pulled into its own factory so a future tweak (replacing the
+        wordmark with a logotype, adding a version line, etc.) lands in
+        one place. Falls back gracefully when the icon asset is missing
+        — important for unit tests that don't always have repo assets
+        on disk.
+        """
+        header = QWidget()
+        header.setObjectName("brandHeader")
+        header.setFixedHeight(56)
+        layout = QHBoxLayout(header)
+        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setSpacing(10)
+
+        icon_label = QLabel()
+        icon_label.setFixedSize(28, 28)
+        if _ICON_PATH.exists():
+            pixmap = QPixmap(str(_ICON_PATH)).scaled(
+                28, 28,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            icon_label.setPixmap(pixmap)
+        layout.addWidget(icon_label)
+
+        wordmark = QLabel("Murmur")
+        wordmark.setObjectName("brandText")
+        layout.addWidget(wordmark)
+        layout.addStretch(1)
+        return header
 
     # ----- Hooks called by the host ---------------------------------------
 
