@@ -188,7 +188,15 @@ def run_tray(cfg: config_mod.Config) -> int:
     main_window.show()
     main_window.raise_()
     main_window.activateWindow()
-    hud = RecordingHUD() if cfg.show_hud else None
+    # Construct the HUD with a level-provider callable that points at the
+    # recorder's live mic-volume reading. We pass a callable rather than the
+    # recorder itself so the HUD stays decoupled from audio.py — see
+    # RecordingHUD.__init__ for the rationale.
+    hud = (
+        RecordingHUD(level_provider=lambda: murmur.recorder.current_level)
+        if cfg.show_hud
+        else None
+    )
 
     def on_state(s: State) -> None:
         _log.info("state -> %s", s.value)
