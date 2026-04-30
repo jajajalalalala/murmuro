@@ -49,7 +49,11 @@ jobs:
           python-version: ${{ steps.python_version.outputs.version }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v3
+        # Bumped from @v3 (which is no longer published — astral-sh has
+        # been releasing v8.x and dropped older major tags). The v0.6.0
+        # release run failed on the first-ever tag push because GitHub
+        # Actions couldn't resolve the @v3 ref.
+        uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
 
