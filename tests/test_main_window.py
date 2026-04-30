@@ -44,8 +44,10 @@ def _make_cfg() -> config_mod.Config:
 def test_window_constructs_with_four_pages(qapp):
     saved = []
     win = MainWindow(_make_cfg(), save_config=saved.append)
-    # Four nav rows: Home / Shortcuts / Models / About.
-    assert win._nav.count() == 4
+    # Top nav: Home / Shortcuts / Models. About lives at the bottom of
+    # the rail (its own one-item list). Stack still has 4 pages.
+    assert win._nav_top.count() == 3
+    assert win._nav_bottom.count() == 1
     assert win._stack.count() == 4
     assert win.home_page.auto_paste.isChecked() is True
     assert win.shortcuts_page.hotkey_recorder.value() == "<right_alt>"

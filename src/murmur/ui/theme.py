@@ -100,11 +100,16 @@ DARK = Palette(
 # ---- Theme detection + application ----------------------------------------
 
 def _detect_palette(app: QApplication) -> Palette:
-    """Pick a palette to match the system theme.
+    """Pick a palette to match the system theme, defaulting to LIGHT.
 
     Qt 6.5 added ``styleHints().colorScheme()``. On older builds we fall
-    back to inspecting the default palette's window lightness. Tests
-    that set ``MURMUR_FORCE_THEME=light|dark`` skip detection entirely.
+    back to inspecting the default palette's window lightness. When
+    neither approach gives a confident answer we now default to LIGHT
+    rather than DARK — the maintainer prefers the brighter look on
+    first launch and can flip to dark via the rail toggle.
+
+    Tests that set ``MURMUR_FORCE_THEME=light|dark`` skip detection
+    entirely.
     """
     import os
     forced = os.environ.get("MURMUR_FORCE_THEME", "").lower()
@@ -125,9 +130,11 @@ def _detect_palette(app: QApplication) -> Palette:
         except Exception:  # noqa: BLE001
             pass
 
-    # Heuristic: look at the existing window-color lightness.
+    # Heuristic fallback: sample the existing window-color lightness.
+    # Bias toward LIGHT (only flip to DARK on a clearly-dark surface)
+    # so an indeterminate Qt build still launches in the brighter mode.
     win = app.palette().color(QPalette.ColorRole.Window)
-    return DARK if win.lightness() < 128 else LIGHT
+    return DARK if win.lightness() < 80 else LIGHT
 
 
 def apply_theme(app: QApplication, palette: Palette | None = None) -> Palette:
@@ -177,6 +184,22 @@ def _stylesheet(p: Palette) -> str:
         font-size: 15px;
         font-weight: 700;
         letter-spacing: -0.01em;
+    }}
+
+    /* Theme toggle at the bottom of the left rail */
+    QPushButton#themeToggle {{
+        background: transparent;
+        color: {p.text_dim};
+        border: 1px solid {p.border};
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 12px;
+        text-align: center;
+    }}
+    QPushButton#themeToggle:hover {{
+        background: {p.surface_alt};
+        color: {p.text};
+        border-color: {p.text_muted};
     }}
 
     /* Left-rail navigation */

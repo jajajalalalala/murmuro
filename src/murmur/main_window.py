@@ -20,18 +20,21 @@ hotkey) doesn't auto-fire the restart.
 from __future__ import annotations
 
 import copy
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -45,7 +48,7 @@ from .pages.home import HomePage
 from .pages.models import ModelsPage
 from .pages.shortcuts import ShortcutsPage
 from .restart import _default_relaunch
-from .ui.theme import scroll_wrap
+from .ui.theme import DARK, LIGHT, apply_theme, scroll_wrap
 
 _log = get_logger("main_window")
 
@@ -72,8 +75,24 @@ class MainWindow(QMainWindow):
         # Injectable for tests so we don't actually re-exec.
         self._relaunch_fn = relaunch_fn or _default_relaunch
 
+        # Title hidden — we hide the macOS title bar entirely via NSWindow
+        # (see _configure_macos_titlebar) so content extends to the very
+        # top of the window. Traffic lights stay; the "Murmur" text bar
+        # the user flagged is gone.
         self.setWindowTitle("Murmur")
-        self.resize(QSize(760, 520))
+        # Bigger default — 760×520 felt cramped, especially the Models
+        # page where a long list and the action buttons compete for the
+        # same vertical space.
+        self.resize(QSize(940, 660))
+
+        # Track whether we've applied the macOS title-bar styling yet so
+        # we only do it once on first show (winId() needs a real native
+        # window, which doesn't exist until showEvent).
+        self._titlebar_styled = False
+
+        # Theme state. We default to LIGHT (per user request) but remember
+        # the active palette so the toggle button can flip it.
+        self._active_palette = LIGHT
 
         central = QWidget(self)
         self.setCentralWidget(central)
@@ -81,7 +100,7 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # --- Left rail (brand header + nav list) --------------------------
+        # --- Left rail (brand header + top nav + bottom row) -------------
         rail = QWidget()
         rail.setObjectName("rail")
         rail.setFixedWidth(170)
@@ -91,18 +110,25 @@ class MainWindow(QMainWindow):
 
         rail_layout.addWidget(self._build_brand_header())
 
-        self._nav = QListWidget()
-        self._nav.setObjectName("nav")
-        for label in ("Home", "Shortcuts", "Models", "About"):
-            self._nav.addItem(QListWidgetItem(label))
-        rail_layout.addWidget(self._nav, 1)
+        # Top nav — Home, Shortcuts, Models. About lives at the bottom of
+        # the rail (per user feedback) so it's a quick eye-jump and
+        # doesn't compete with the primary destinations.
+        self._nav_top = QListWidget()
+        self._nav_top.setObjectName("nav")
+        for label in ("Home", "Shortcuts", "Models"):
+            self._nav_top.addItem(QListWidgetItem(label))
+        rail_layout.addWidget(self._nav_top, 1)
+
+        # Bottom row: About + theme toggle, separated by a thin divider
+        # so the bottom area reads as its own section visually.
+        rail_layout.addWidget(self._build_bottom_rail_section())
 
         root.addWidget(rail)
 
         # --- Pages ---------------------------------------------------------
         # Each page is wrapped in a scroll area so a small window can still
         # reach every control — without this, the model list and the
-        # language picker get clipped on a 520-tall window and there's no
+        # language picker get clipped on a small window and there's no
         # scrollbar to bring them into view.
         self._stack = QStackedWidget()
         self.home_page = HomePage(cfg)
@@ -115,8 +141,11 @@ class MainWindow(QMainWindow):
             self._stack.addWidget(scroll_wrap(page))
         root.addWidget(self._stack, 1)
 
-        self._nav.currentRowChanged.connect(self._stack.setCurrentIndex)
-        self._nav.setCurrentRow(0)
+        # Wire nav: top list selects pages 0/1/2; the bottom About button
+        # selects page 3 and clears the top list's selection so we never
+        # show two highlights at once.
+        self._nav_top.currentRowChanged.connect(self._on_top_nav_changed)
+        self._nav_top.setCurrentRow(0)
 
         # Persist + notify on any page edit. The save+reload cost is tiny
         # compared to a full transcription cycle, so we don't debounce.
@@ -128,17 +157,23 @@ class MainWindow(QMainWindow):
     def _build_brand_header(self) -> QWidget:
         """Top-of-rail brand bar: app icon + 'Murmur' wordmark.
 
-        Pulled into its own factory so a future tweak (replacing the
-        wordmark with a logotype, adding a version line, etc.) lands in
-        one place. Falls back gracefully when the icon asset is missing
-        — important for unit tests that don't always have repo assets
-        on disk.
+        With the macOS title bar hidden, the traffic-light buttons
+        (close / minimize / maximize) overlay the top-left of the
+        window — roughly 70 px wide × 28 px tall. The brand header
+        therefore reserves 28 px of top padding so its content sits
+        below the traffic-light strip and doesn't get covered.
+
+        Falls back gracefully when the icon asset is missing — useful
+        for unit tests that don't always have repo assets on disk.
         """
         header = QWidget()
         header.setObjectName("brandHeader")
-        header.setFixedHeight(56)
+        # Total height = 28 (traffic-light reserve) + 36 (content row).
+        header.setFixedHeight(64)
         layout = QHBoxLayout(header)
-        layout.setContentsMargins(16, 0, 16, 0)
+        # Left margin shifts content past where the traffic lights sit;
+        # top margin pushes them below the title-bar strip.
+        layout.setContentsMargins(16, 28, 16, 0)
         layout.setSpacing(10)
 
         icon_label = QLabel()
@@ -157,6 +192,147 @@ class MainWindow(QMainWindow):
         layout.addWidget(wordmark)
         layout.addStretch(1)
         return header
+
+    def _build_bottom_rail_section(self) -> QWidget:
+        """About row + theme-toggle button at the bottom of the left rail.
+
+        Two-piece layout: the About item lives in its own QListWidget so
+        it inherits the same selected-row styling as the top nav, and
+        the theme toggle sits below as a small button. We connect the
+        About list's selection to the unified nav slot so picking About
+        clears the top-nav highlight and the stack flips to page 3.
+        """
+        section = QWidget()
+        layout = QVBoxLayout(section)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self._nav_bottom = QListWidget()
+        self._nav_bottom.setObjectName("nav")
+        self._nav_bottom.addItem(QListWidgetItem("About"))
+        # No "current row" until the user clicks About — we keep the
+        # selection clear so picking About is a deliberate jump.
+        self._nav_bottom.setCurrentRow(-1)
+        self._nav_bottom.itemSelectionChanged.connect(
+            self._on_bottom_nav_changed,
+        )
+        layout.addWidget(self._nav_bottom)
+
+        # Theme toggle. Unicode glyph that flips between the two
+        # alternatives — clicking shows the *target* state's icon, not
+        # the current state's, so the affordance reads as "switch to X."
+        toggle_row = QHBoxLayout()
+        toggle_row.setContentsMargins(12, 8, 12, 12)
+        toggle_row.setSpacing(0)
+        self._theme_toggle = QPushButton()
+        self._theme_toggle.setObjectName("themeToggle")
+        self._theme_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._theme_toggle.clicked.connect(self._toggle_theme)
+        toggle_row.addWidget(self._theme_toggle, 1)
+        layout.addLayout(toggle_row)
+        # Defer the initial label-set until apply_theme has run so we
+        # know which palette is active.
+        self._refresh_theme_toggle_label()
+        return section
+
+    # ----- Navigation coordination ----------------------------------------
+
+    def _on_top_nav_changed(self, row: int) -> None:
+        """Top-nav row changed — switch the stack and clear the bottom
+        nav's selection so we never highlight two destinations at once."""
+        if row < 0:
+            return
+        self._stack.setCurrentIndex(row)
+        if self._nav_bottom.currentRow() != -1:
+            self._nav_bottom.blockSignals(True)
+            self._nav_bottom.setCurrentRow(-1)
+            self._nav_bottom.blockSignals(False)
+
+    def _on_bottom_nav_changed(self) -> None:
+        """About selected — page index 3. Clears the top-nav highlight."""
+        if self._nav_bottom.currentRow() < 0:
+            return
+        # About is the 4th page (index 3).
+        self._stack.setCurrentIndex(3)
+        self._nav_top.blockSignals(True)
+        self._nav_top.setCurrentRow(-1)
+        self._nav_top.blockSignals(False)
+
+    # ----- Theme toggle ---------------------------------------------------
+
+    def _toggle_theme(self) -> None:
+        """Flip between LIGHT and DARK at runtime.
+
+        Re-applies the global stylesheet via :func:`apply_theme` so every
+        widget picks up the new palette without having to be reconstructed.
+        Choice is session-scoped — not persisted to config (that's a
+        separate follow-up so the toggle works fast and in isolation)."""
+        new_palette = DARK if self._active_palette is LIGHT else LIGHT
+        app = QApplication.instance()
+        if app is not None:
+            apply_theme(app, new_palette)
+        self._active_palette = new_palette
+        self._refresh_theme_toggle_label()
+
+    def _refresh_theme_toggle_label(self) -> None:
+        """Show the *target* state's glyph + label so the affordance reads
+        as 'click to switch to X' rather than 'currently in Y'."""
+        if self._active_palette is LIGHT:
+            self._theme_toggle.setText("🌙  Dark")
+        else:
+            self._theme_toggle.setText("☀  Light")
+
+    # ----- macOS title bar ------------------------------------------------
+
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        super().showEvent(event)
+        if not self._titlebar_styled:
+            self._configure_macos_titlebar()
+            self._titlebar_styled = True
+
+    def _configure_macos_titlebar(self) -> None:
+        """Hide the macOS title bar so content extends to the very top of
+        the window. Traffic-light buttons stay (the user can still close
+        / minimize / maximize). The 28 px top padding in the brand
+        header reserves space so the icon + wordmark sit below the
+        traffic-light overlay area.
+
+        No-ops on non-macOS platforms and silently degrades if pyobjc
+        isn't installed — falling back to the default title bar in that
+        case is preferable to crashing on start.
+
+        Also bails out under any non-cocoa Qt platform (offscreen,
+        minimal, etc.) — winId() there returns a non-NSView pointer
+        and dereferencing it segfaults the test runner. The HUD has the
+        same guard for the same reason.
+        """
+        if sys.platform != "darwin":
+            return
+        from PySide6.QtGui import QGuiApplication
+        if QGuiApplication.platformName() != "cocoa":
+            return
+        try:
+            import objc
+            from AppKit import NSWindowStyleMaskFullSizeContentView
+        except ImportError:
+            _log.info("pyobjc not available; keeping default title bar")
+            return
+        view_ptr = int(self.winId())
+        if not view_ptr:
+            return
+        try:
+            view = objc.objc_object(c_void_p=view_ptr)
+            window = view.window()
+            if window is None:
+                return
+            window.setTitlebarAppearsTransparent_(True)
+            # NSWindowTitleHidden = 1
+            window.setTitleVisibility_(1)
+            window.setStyleMask_(
+                window.styleMask() | NSWindowStyleMaskFullSizeContentView,
+            )
+        except Exception as e:  # noqa: BLE001
+            _log.warning("could not configure macOS title bar: %s", e)
 
     # ----- Hooks called by the host ---------------------------------------
 
