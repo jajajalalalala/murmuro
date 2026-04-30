@@ -26,6 +26,7 @@ from .permissions import (
     open_input_monitoring_settings,
     request_input_monitoring,
 )
+from .ui.dialogs import DialogButton, MurmurDialog
 from .ui.theme import DARK, LIGHT, apply_theme
 
 _log = get_logger("tray")
@@ -133,6 +134,12 @@ def _hint_accessibility_if_denied(parent=None) -> None:
     perfectly usable degraded state). The point is to make the missing
     permission visible from a menu-bar app, where stderr warnings are
     invisible and pynput's silent hang would otherwise look like a bug in us.
+
+    The hint renders through :class:`MurmurDialog` so it visually
+    matches the rest of the app — same cream surface, same title-bar
+    treatment as the main window. ``QMessageBox`` was the previous
+    container but its native chrome made the first-run popup feel
+    like a system alert, not part of Murmur.
     """
     status = accessibility_status()
     _log.info("Accessibility status at startup: %s", status.value)
@@ -141,25 +148,29 @@ def _hint_accessibility_if_denied(parent=None) -> None:
     if status == AccessibilityStatus.UNAVAILABLE:
         return
 
-    box = QMessageBox(parent)
-    box.setIcon(QMessageBox.Icon.Information)
-    box.setWindowTitle("Murmur — auto-paste needs Accessibility")
-    box.setText("Auto-paste at cursor is enabled but Accessibility isn't granted.")
-    box.setInformativeText(
-        "Without Accessibility, transcribed text still lands on your clipboard "
-        "(press ⌘V to paste manually) but Murmur can't simulate ⌘V for you.\n\n"
-        "To enable real auto-paste:\n"
-        "1. Click 'Open Accessibility settings' below.\n"
-        "2. Remove any stale Murmur entry, then drag dist/Murmur.app in or "
-        "toggle the existing one ON.\n"
-        "3. Quit and relaunch Murmur."
+    open_text = "Open Accessibility settings"
+    dialog = MurmurDialog(
+        title="Auto-paste needs Accessibility",
+        body=(
+            "Auto-paste at cursor is enabled but Accessibility isn't "
+            "granted. Without it, transcribed text still lands on your "
+            "clipboard (press ⌘V to paste manually) — Murmur just can't "
+            "simulate the keystroke for you."
+        ),
+        steps=(
+            f"Click {open_text!r} below.",
+            "Remove any stale Murmur entry, then drag Murmur.app in or "
+            "toggle the existing one ON.",
+            "Quit and relaunch Murmur.",
+        ),
+        buttons=(
+            DialogButton("Continue with clipboard only", role="reject"),
+            DialogButton(open_text, role="accept", primary=True),
+        ),
+        parent=parent,
     )
-    open_btn = box.addButton(
-        "Open Accessibility settings", QMessageBox.ButtonRole.ActionRole
-    )
-    box.addButton("Continue with clipboard only", QMessageBox.ButtonRole.AcceptRole)
-    box.exec()
-    if box.clickedButton() is open_btn:
+    dialog.exec()
+    if dialog.clicked_text == open_text:
         open_accessibility_settings()
 
 
