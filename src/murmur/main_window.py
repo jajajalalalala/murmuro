@@ -24,8 +24,8 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QCloseEvent, QPixmap
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QCloseEvent, QMouseEvent, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -175,23 +175,73 @@ class MainWindow(QMainWindow):
         # MainWindow re-applies the global stylesheet.
         self.home_page.theme_toggle_requested.connect(self.set_theme)
 
+        # Window-drag plumbing: the brand header is the drag handle but
+        # we route all mouse events through a QApplication-level event
+        # filter rather than per-widget handlers (the per-widget
+        # handlers never fired in the bundled .app for reasons we
+        # never pinned down). The filter region-checks each press
+        # against the brand header's rect, records the offset relative
+        # to the window's top-left, and moves the window on each
+        # subsequent QMouseEvent until release.
+        self._drag_offset = None
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
+
+    # ----- Event handling -------------------------------------------------
+
+    def eventFilter(self, obj, event):  # noqa: N802 (Qt API)
+        """Global mouse filter that drags the window from the brand header.
+
+        Runs before any widget-level handler, so child widgets eating
+        the press doesn't matter — we still see it here. Returns
+        ``False`` so events continue normal dispatch (this filter
+        observes; it doesn't consume).
+        """
+        et = event.type()
+        if et == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):
+            if (
+                event.button() == Qt.MouseButton.LeftButton
+                and self._brand_header is not None
+                and self._brand_header.isVisible()
+            ):
+                global_pos = event.globalPosition().toPoint()
+                local = self._brand_header.mapFromGlobal(global_pos)
+                if self._brand_header.rect().contains(local):
+                    self._drag_offset = global_pos - self.pos()
+        elif et == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
+            if (
+                self._drag_offset is not None
+                and event.buttons() & Qt.MouseButton.LeftButton
+            ):
+                self.move(event.globalPosition().toPoint() - self._drag_offset)
+        elif et == QEvent.Type.MouseButtonRelease:
+            self._drag_offset = None
+        return super().eventFilter(obj, event)
+
     # ----- Construction helpers -------------------------------------------
 
     def _build_brand_header(self) -> QWidget:
-        """Top-of-rail brand bar + drag handle for the frameless window.
+        """Top-of-rail brand bar + drag region for the frameless window.
 
-        The brand header doubles as the window's drag handle: with the
-        macOS title bar hidden, ``setMovableByWindowBackground`` alone
-        doesn't help because every pixel of the central widget is
-        covered by an opaque subview. ``_DragHeader`` overrides the
-        mouse press / move handlers and calls ``startSystemMove`` on
-        the window handle, which is the supported Qt path for
-        frameless-window dragging on every platform.
+        Three earlier dragging implementations all failed in the
+        bundled .app — ``startSystemMove()``, ``[NSWindow
+        performWindowDragWithEvent:]``, and per-widget mouse handlers
+        on a ``_DragHeader`` subclass. The first two no-op'd
+        silently; the third was either not receiving the press at all
+        or ``QWidget.move()`` was being snapped back by AppKit.
 
-        The 28-px top padding reserves space for the macOS traffic
-        lights so they don't overlap the icon and wordmark.
+        The approach that *does* work is a global event filter on
+        ``QApplication`` (see ``MainWindow.eventFilter``). It runs
+        before any widget-level handlers, so it doesn't matter if a
+        child widget would otherwise eat the press. The filter
+        region-checks the press against the brand header's rect and
+        manages the drag offset itself.
+
+        So this method just builds the visible chrome. The header's
+        own mouse handlers are never used.
         """
-        header = _DragHeader(self)
+        header = QWidget(self)
         header.setObjectName("brandHeader")
         header.setFixedHeight(64)
         layout = QHBoxLayout(header)
@@ -200,22 +250,14 @@ class MainWindow(QMainWindow):
 
         self._brand_glyph = QLabel()
         self._brand_glyph.setFixedSize(24, 24)
-        # The icon and wordmark inside the drag header should not eat
-        # mouse events — clicks anywhere on the strip should start a
-        # window move.
-        self._brand_glyph.setAttribute(
-            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True,
-        )
         self._refresh_brand_glyph()
         layout.addWidget(self._brand_glyph)
 
         wordmark = QLabel("Murmur")
         wordmark.setObjectName("brandText")
-        wordmark.setAttribute(
-            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True,
-        )
         layout.addWidget(wordmark)
         layout.addStretch(1)
+        self._brand_header = header
         return header
 
     def _refresh_brand_glyph(self) -> None:
@@ -471,97 +513,3 @@ class MainWindow(QMainWindow):
         # The app lives in the tray; closing the window just hides it.
         event.ignore()
         self.hide()
-
-
-class _DragHeader(QWidget):
-    """Brand-header widget that drags the parent window when clicked.
-
-    Two earlier implementations didn't actually drag anything in the
-    bundled .app:
-
-    1. ``QWindow.startSystemMove()`` returned ``False`` on the cocoa
-       platform plugin — the AppKit handoff didn't fire.
-    2. Manual offset tracking + ``QWidget.move()`` set the new geometry
-       but AppKit promptly snapped the window back; with the title
-       bar hidden, NSWindow ignores programmatic moves issued from a
-       mouse-press handler unless they go through its drag pipeline.
-
-    The reliable path on macOS is ``[NSWindow performWindowDragWithEvent:]``.
-    It hands the active mouse press straight to AppKit's window-drag
-    machinery — same code path the title bar uses. We pull the
-    current ``NSEvent`` from ``NSApp`` and pass it in. Falls back to
-    the manual tracker on non-macOS platforms (Windows packaging is
-    a v1.0 task; this keeps the offscreen test runner happy too).
-    """
-
-    _drag_offset = None  # used on non-macOS / fallback path
-
-    def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt API)
-        if event.button() != Qt.MouseButton.LeftButton:
-            super().mousePressEvent(event)
-            return
-        if sys.platform == "darwin" and self._cocoa_drag():
-            event.accept()
-            return
-        window = self.window()
-        if window is not None:
-            self._drag_offset = (
-                event.globalPosition().toPoint()
-                - window.frameGeometry().topLeft()
-            )
-            event.accept()
-            return
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event) -> None:  # noqa: N802 (Qt API)
-        if (
-            self._drag_offset is not None
-            and event.buttons() & Qt.MouseButton.LeftButton
-        ):
-            window = self.window()
-            if window is not None:
-                window.move(
-                    event.globalPosition().toPoint() - self._drag_offset,
-                )
-                event.accept()
-                return
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 (Qt API)
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_offset = None
-        super().mouseReleaseEvent(event)
-
-    def _cocoa_drag(self) -> bool:
-        """Hand the current mouse press to NSWindow's drag pipeline.
-
-        Returns True iff the handoff succeeded; the caller falls back
-        to manual tracking on False. Silently fails when pyobjc isn't
-        installed or the Qt platform is something other than cocoa
-        (e.g. ``offscreen`` under tests).
-        """
-        from PySide6.QtGui import QGuiApplication
-        if QGuiApplication.platformName() != "cocoa":
-            return False
-        try:
-            import objc
-            from AppKit import NSApp
-        except ImportError:
-            return False
-        try:
-            ns_event = NSApp.currentEvent()
-            if ns_event is None:
-                return False
-            window = self.window()
-            view_ptr = int(window.winId()) if window is not None else 0
-            if not view_ptr:
-                return False
-            ns_view = objc.objc_object(c_void_p=view_ptr)
-            ns_window = ns_view.window()
-            if ns_window is None:
-                return False
-            ns_window.performWindowDragWithEvent_(ns_event)
-            return True
-        except Exception as e:  # noqa: BLE001
-            _log.warning("cocoa window drag failed: %s", e)
-            return False
