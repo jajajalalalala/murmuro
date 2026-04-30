@@ -14,9 +14,17 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from murmur import config as config_mod
-from murmur.transcribe.factory import build
-from murmur.transcribe.openai_compatible import (
+# The cloud-transcription tests below patch ``openai.OpenAI``, which
+# requires the ``openai`` package to be importable. It lives in the
+# ``[openai]`` optional extra (not in ``[dev]`` or ``[gui]``), so CI
+# environments that install ``-e .[dev,gui]`` don't have it. Skip the
+# whole module rather than fail with a confusing ModuleNotFoundError
+# from inside the patch context manager.
+pytest.importorskip("openai")
+
+from murmur import config as config_mod  # noqa: E402
+from murmur.transcribe.factory import build  # noqa: E402
+from murmur.transcribe.openai_compatible import (  # noqa: E402
     OpenAICompatible,
     _pcm_to_wav_bytes,
 )
