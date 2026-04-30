@@ -13,7 +13,6 @@ to ``huggingface_hub`` directly. Trade-off accepted for simplicity.
 """
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 
@@ -34,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from .. import config as config_mod
 from .. import providers as providers_mod
+from .. import secrets
 from .._logging import get_logger
 from ..providers import CloudProvider, LocalModel, find_local_model
 from ..transcribe.factory import _resolve_local_download_root
@@ -472,15 +472,24 @@ class _CloudPanel(QWidget):
         self.model_combo = QComboBox()
         self.model_combo.currentIndexChanged.connect(lambda _: self.config_dirty.emit())
 
-        self.api_key_env = QLineEdit()
-        self.api_key_env.editingFinished.connect(self.config_dirty.emit)
+        # Direct API-key entry, password-masked. The key writes to the
+        # OS keychain via secrets.set() on save — never to config.toml,
+        # never to the user's environment. Empty field = "leave the
+        # currently stored key alone" so re-saving an unrelated change
+        # (e.g. switching the model) doesn't clobber a key that was
+        # set in a previous session.
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.api_key_input.setPlaceholderText("Paste your API key")
+        self.api_key_input.editingFinished.connect(self.config_dirty.emit)
 
         layout.addRow("Pricing:", self._rate_label)
         layout.addRow("Model:", self.model_combo)
-        layout.addRow("API key env var:", self.api_key_env)
+        layout.addRow("API key:", self.api_key_input)
 
         self._key_status = QLabel()
         self._key_status.setProperty("hint", True)
+        self._key_status.setWordWrap(True)
         layout.addRow("", self._key_status)
 
         # Test-connection row: button + status label. Sends a 1-second
@@ -497,48 +506,91 @@ class _CloudPanel(QWidget):
         outer.addWidget(cloud_card)
         outer.addStretch(1)
 
-        self.api_key_env.textChanged.connect(self._refresh_key_status)
+        self.api_key_input.textChanged.connect(self._refresh_key_status)
         self._test_thread: QThread | None = None
         self._test_worker: _ProbeWorker | None = None
 
     def set_provider(self, provider: CloudProvider, cfg: config_mod.Config) -> None:
         self._provider = provider
         self._rate_label.setText(provider.rate_hint or "—")
+
+        # Detect "switching providers" vs "showing the saved one":
+        # honoring saved model/api_key_env across a provider switch was
+        # the bug — selecting Groq still left the env-var field on
+        # ``OPENAI_API_KEY`` because that was the persisted value
+        # from the previous (OpenAI) session.
+        is_active_provider = cfg.cloud_provider_id == provider.id
+
         self.model_combo.blockSignals(True)
         self.model_combo.clear()
         self.model_combo.addItems(provider.models)
-        # Honor the user's previously-saved model if it lives in this
-        # provider's list; otherwise fall back to the provider default.
-        if cfg.openai.model in provider.models:
+        if is_active_provider and cfg.openai.model in provider.models:
             self.model_combo.setCurrentText(cfg.openai.model)
         else:
             self.model_combo.setCurrentText(provider.default_model)
         self.model_combo.blockSignals(False)
 
-        self.api_key_env.blockSignals(True)
-        self.api_key_env.setText(cfg.openai.api_key_env or provider.api_key_env)
-        self.api_key_env.blockSignals(False)
+        # Field starts empty per provider so users can type a fresh key
+        # without seeing a stale one from another provider. The status
+        # line below shows whether a key is already stored for this
+        # provider (keychain or env var).
+        self.api_key_input.blockSignals(True)
+        self.api_key_input.clear()
+        self.api_key_input.blockSignals(False)
         self._refresh_key_status()
 
     def apply_to_config(self, cfg: config_mod.Config) -> config_mod.Config:
         if self._provider is None:
             return cfg
-        cfg.openai.api_key_env = (
-            self.api_key_env.text().strip() or self._provider.api_key_env
-        )
+        # Persist the user-typed key to the OS keychain. Empty field
+        # means "no change" — we don't want a model-only edit to wipe
+        # a previously-saved key.
+        typed = self.api_key_input.text().strip()
+        if typed:
+            try:
+                secrets.set(self._provider.id, typed)
+            except Exception as e:  # noqa: BLE001
+                _log.warning("failed to write %s key to keychain: %s",
+                             self._provider.id, e)
+            # Clear the visible value once it's been stored so the
+            # next session can't read it back from the field.
+            self.api_key_input.blockSignals(True)
+            self.api_key_input.clear()
+            self.api_key_input.blockSignals(False)
+        # Keep the env-var name pinned to the provider's default so
+        # the env-var fallback in secrets.get() works for users who
+        # set the key via direnv / 1Password CLI / shell rc instead
+        # of the keychain.
+        cfg.openai.api_key_env = self._provider.api_key_env
         cfg.openai.model = self.model_combo.currentText() or self._provider.default_model
         return cfg
 
     def _refresh_key_status(self) -> None:
-        env = self.api_key_env.text().strip()
-        if not env:
-            self._key_status.setText("Enter the env var that holds your API key.")
+        if self._provider is None:
+            self._key_status.setText("")
             return
-        if os.environ.get(env):
-            self._key_status.setText(f"✓ {env} is set in this session.")
+        # secrets.get() checks keychain first, env var second — the
+        # status line tells the user which path is currently providing
+        # the key, or that none is configured.
+        try:
+            from .. import secrets as secrets_mod
+            stored = secrets_mod.get(
+                self._provider.id, env_var=self._provider.api_key_env,
+            )
+        except Exception:  # noqa: BLE001
+            stored = None
+        if stored:
+            in_keychain = False
+            try:
+                import keyring
+                in_keychain = bool(keyring.get_password("murmur", self._provider.id))
+            except Exception:  # noqa: BLE001
+                pass
+            source = "keychain" if in_keychain else f"{self._provider.api_key_env} env var"
+            self._key_status.setText(f"✓ Key is set ({source}).")
         else:
             self._key_status.setText(
-                f"⚠ {env} not set in this session. Export it before using this backend."
+                "⚠ No API key configured. Paste your key above and save."
             )
 
     # -- Test connection --------------------------------------------------
@@ -555,8 +607,14 @@ class _CloudPanel(QWidget):
         """
         if self._provider is None or self._test_thread is not None:
             return
-        env = self.api_key_env.text().strip() or self._provider.api_key_env
-        api_key = os.environ.get(env, "")
+        # If the user has typed a fresh key in the field, test that
+        # one — useful for verifying a key before committing it to
+        # the keychain. Otherwise fall through to the stored key
+        # (keychain or env-var fallback).
+        typed = self.api_key_input.text().strip()
+        api_key = typed or (
+            secrets.get(self._provider.id, env_var=self._provider.api_key_env) or ""
+        )
         model = self.model_combo.currentText() or self._provider.default_model
         self._test_btn.setEnabled(False)
         self._test_status.setText("Pinging…")
