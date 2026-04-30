@@ -254,3 +254,154 @@ def test_relaunch_works_without_tray(qapp):
     win.shortcuts_page.hotkey_recorder._commit("<f9>")
     QTest.qWait(20)
     assert relaunches, "relaunch_fn was never called when tray was None"
+
+
+# --- Hot-reload regression net (#45) -----------------------------------------
+#
+# Post-#44, MurmurApp.reload_config drops the cached transcriber for
+# model/provider/backend changes without restarting the pynput listener.
+# _persist_changes therefore should *only* relaunch the process for hotkey
+# changes — every other restart_reasons output rides the in-process
+# config_saved -> reload_config path. These tests drive _persist_changes
+# directly by stubbing each page's apply_to_config to mutate the draft
+# the way the real widgets would, so we test the relaunch decision in
+# isolation from Qt model/provider widget plumbing.
+
+
+def _build_win_with_relaunch_capture(cfg, qapp):
+    saved: list[config_mod.Config] = []
+    relaunches: list[None] = []
+    tray = _FakeTray()
+    win = MainWindow(
+        cfg,
+        save_config=saved.append,
+        tray=tray,
+        relaunch_fn=lambda: relaunches.append(None),
+        restart_delay_ms=0,
+    )
+    return win, saved, relaunches, tray
+
+
+def _stub_pages(win, mutate):
+    """Replace each page's apply_to_config with the identity, then plug
+    ``mutate`` in as the models-page apply so the draft picks up the
+    caller's desired change. Returns nothing — _persist_changes is
+    invoked by the caller."""
+    win.home_page.apply_to_config = lambda c: c
+    win.shortcuts_page.apply_to_config = lambda c: c
+    win.models_page.apply_to_config = mutate
+
+
+def test_local_model_change_alone_does_not_relaunch(qapp):
+    """Switching the active local model rides reload_config's transcriber
+    drop — no os.execv needed."""
+    from PySide6.QtTest import QTest
+
+    cfg = _make_cfg()
+    win, saved, relaunches, tray = _build_win_with_relaunch_capture(cfg, qapp)
+
+    def _mutate(draft):
+        draft.local.model = "small"
+        return draft
+
+    _stub_pages(win, _mutate)
+    win._persist_changes()
+
+    QTest.qWait(20)
+    assert saved and saved[-1].local.model == "small"
+    assert tray.messages == []
+    assert relaunches == []
+
+
+def test_cloud_provider_change_alone_does_not_relaunch(qapp):
+    from PySide6.QtTest import QTest
+
+    cfg = config_mod.Config(
+        backend="cloud",
+        cloud_provider_id="openai",
+        hotkey="<right_alt>",
+        local=config_mod.LocalBackendConfig(model="base"),
+        openai=config_mod.OpenAIBackendConfig(api_key_env="OPENAI_API_KEY"),
+    )
+    win, saved, relaunches, tray = _build_win_with_relaunch_capture(cfg, qapp)
+
+    def _mutate(draft):
+        draft.cloud_provider_id = "groq"
+        return draft
+
+    _stub_pages(win, _mutate)
+    win._persist_changes()
+
+    QTest.qWait(20)
+    assert saved and saved[-1].cloud_provider_id == "groq"
+    assert tray.messages == []
+    assert relaunches == []
+
+
+def test_backend_switch_alone_does_not_relaunch(qapp):
+    """Local <-> cloud no longer needs a process restart post-#44."""
+    from PySide6.QtTest import QTest
+
+    cfg = _make_cfg()  # backend="local"
+    win, saved, relaunches, tray = _build_win_with_relaunch_capture(cfg, qapp)
+
+    def _mutate(draft):
+        draft.backend = "cloud"
+        return draft
+
+    _stub_pages(win, _mutate)
+    win._persist_changes()
+
+    QTest.qWait(20)
+    assert saved and saved[-1].backend == "cloud"
+    assert tray.messages == []
+    assert relaunches == []
+
+
+def test_combined_hotkey_and_model_change_relaunches_once_with_shortcut_reason(qapp):
+    """When both a hotkey and a model change land in the same save, the
+    hotkey change is the only one that can't be applied in-process. The
+    relaunch should fire exactly once and the tray copy should mention
+    the shortcut, not the model — that's the part actually requiring
+    the os.execv."""
+    from PySide6.QtTest import QTest
+
+    cfg = _make_cfg()
+    win, saved, relaunches, tray = _build_win_with_relaunch_capture(cfg, qapp)
+
+    def _mutate_models(draft):
+        draft.local.model = "small"
+        return draft
+
+    win.home_page.apply_to_config = lambda c: c
+    win.models_page.apply_to_config = _mutate_models
+    # Drive the hotkey through the recorder so the shortcuts page apply
+    # picks it up the same way the real UI does.
+    win.shortcuts_page.hotkey_recorder.set_value("<f9>")
+
+    win._persist_changes()
+
+    QTest.qWait(20)
+    assert saved and saved[-1].hotkey == "<f9>"
+    assert saved[-1].local.model == "small"
+    assert len(relaunches) == 1, "expected exactly one relaunch"
+    assert len(tray.messages) == 1
+    _, body = tray.messages[-1]
+    assert "shortcut" in body
+    assert "model" not in body
+
+
+def test_pure_toggle_save_does_not_relaunch(qapp):
+    """Regression net: auto_paste flip must not surface a tray
+    notification or relaunch. (Already true post-#44 because
+    restart_reasons returns [] for pure toggles, but pin it.)"""
+    from PySide6.QtTest import QTest
+
+    cfg = _make_cfg()
+    win, saved, relaunches, tray = _build_win_with_relaunch_capture(cfg, qapp)
+    win.home_page.auto_paste.setChecked(False)
+
+    QTest.qWait(20)
+    assert saved and saved[-1].auto_paste is False
+    assert tray.messages == []
+    assert relaunches == []
