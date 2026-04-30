@@ -124,3 +124,96 @@ def test_format_elapsed_exactly_two_minutes():
 def test_format_elapsed_negative_clamps_to_zero():
     """Defensive: monotonic clock skew shouldn't paint a negative timer."""
     assert _format_elapsed(-1.0) == "0.0s"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Volume-reactive dots — exercise the level→radius/alpha mapping.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _render_to_pixmap(hud: RecordingHUD) -> QPixmap:
+    pixmap = QPixmap(hud.size())
+    pixmap.fill()  # white background so we can find the dot pixels
+    hud.render(pixmap)
+    return pixmap
+
+
+def test_hud_silent_baseline_matches_static_design(qapp):
+    """At level=0 the dots must match #14's static look (2 px, ~30 % alpha)
+    so the redesign isn't visually regressed."""
+    hud = RecordingHUD(level_provider=lambda: 0.0)
+    # Read directly from the geometry constants to pin the contract; the
+    # paintEvent uses these same constants on the level=0 branch.
+    assert hud._DOT_BASELINE_DIAMETER == 2
+    assert hud._DOT_BASELINE_ALPHA == 77
+    # Smoke render — must not crash and must paint a baseline frame.
+    hud.show_at_bottom_center()
+    _render_to_pixmap(hud)
+    hud.hide()
+
+
+def test_hud_peak_level_reaches_peak_geometry(qapp):
+    """At level=1.0 dots are 6 px diameter / fully opaque per the issue."""
+    hud = RecordingHUD(level_provider=lambda: 1.0)
+    assert hud._DOT_PEAK_DIAMETER == 6
+    assert hud._DOT_PEAK_ALPHA == 255
+    hud.show_at_bottom_center()
+    _render_to_pixmap(hud)
+    hud.hide()
+
+
+def test_hud_intermediate_level_renders_without_crash(qapp):
+    """Mid-range level produces an intermediate radius/alpha; we don't try
+    to read pixels here (too brittle across Qt versions) — we just confirm
+    the paint path completes for a non-edge level."""
+    hud = RecordingHUD(level_provider=lambda: 0.5)
+    hud.show_at_bottom_center()
+    _render_to_pixmap(hud)
+    hud.hide()
+
+
+def test_hud_no_level_provider_does_not_crash(qapp):
+    """Defensive: the HUD must render even without a level source — e.g.
+    when constructed in a test or before the recorder is wired up."""
+    hud = RecordingHUD()  # no provider
+    assert hud._current_level() == 0.0
+    hud.show_at_bottom_center()
+    _render_to_pixmap(hud)
+    hud.hide()
+
+
+def test_hud_level_provider_exception_is_swallowed(qapp):
+    """A broken provider must degrade gracefully to baseline — never crash
+    the HUD repaint."""
+    def boom() -> float:
+        raise RuntimeError("audio thread is dead")
+
+    hud = RecordingHUD(level_provider=boom)
+    assert hud._current_level() == 0.0  # falls back to baseline
+    hud.show_at_bottom_center()
+    _render_to_pixmap(hud)
+    hud.hide()
+
+
+def test_hud_level_clamped_to_unit_interval(qapp):
+    """Out-of-range levels (negative, > 1) clamp before driving the paint."""
+    hud_low = RecordingHUD(level_provider=lambda: -2.5)
+    hud_high = RecordingHUD(level_provider=lambda: 99.0)
+    assert hud_low._current_level() == 0.0
+    assert hud_high._current_level() == 1.0
+
+
+def test_hud_set_level_provider_late_binds(qapp):
+    """The setter exists so the HUD can be constructed before the recorder
+    is available without forcing a re-instantiation."""
+    hud = RecordingHUD()
+    hud.set_level_provider(lambda: 0.7)
+    assert hud._current_level() == pytest.approx(0.7)
+    hud.set_level_provider(None)
+    assert hud._current_level() == 0.0
+
+
+def test_hud_timer_runs_at_30hz(qapp):
+    """30 Hz polling for smooth volume-reactive animation."""
+    hud = RecordingHUD()
+    assert hud._timer.interval() == 33

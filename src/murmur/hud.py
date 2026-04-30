@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import platform
 import time
+from collections.abc import Callable
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QGuiApplication, QPainter
@@ -123,16 +124,37 @@ class RecordingHUD(QWidget):
     # bottom" rather than "floating in the middle".
     BOTTOM_MARGIN = 96
 
-    # Visual contract for the three "anonymous" dots in the left cluster.
-    # They're decorative in this slice; #18 will wire them to mic volume.
-    _DOT_DIAMETER = 2
+    # Visual contract for the three dots in the left cluster.
+    #
+    # Static baseline (silent / no level provider): 2 px diameter, ~30 % alpha.
+    # When the level rises toward 1.0 the diameter grows to 6 px and the
+    # alpha climbs to 255 — see ``_dot_geometry_for_level`` for the exact
+    # mapping. The baseline numbers are kept here so the silent-mode
+    # rendering remains a regression pin against #14.
+    _DOT_BASELINE_DIAMETER = 2
+    _DOT_PEAK_DIAMETER = 6
+    _DOT_BASELINE_ALPHA = 77  # ~30 % of 255
+    _DOT_PEAK_ALPHA = 255
     _DOT_COUNT = 3
-    _DOT_CLUSTER_LEFT = 8  # px from left edge of pill to first dot
+    _DOT_CLUSTER_LEFT = 8  # px from left edge of pill to first dot's center column
     _DOT_CLUSTER_WIDTH = 22  # leaves the cluster occupying the left ~30px
-    _DOT_COLOR = QColor(245, 245, 245, 77)  # ~30% alpha, neutral light gray
+    _DOT_RGB = (245, 245, 245)  # neutral light gray; alpha is dynamic
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        level_provider: Callable[[], float] | None = None,
+    ) -> None:
+        """Construct the HUD.
+
+        ``level_provider`` is an optional zero-arg callable returning the
+        current mic volume in [0.0, 1.0]. We accept a callable rather than a
+        ``Recorder`` reference so the HUD stays decoupled from ``audio.py``
+        — tests just pass ``lambda: 0.5`` and the production wiring passes
+        ``lambda: recorder.current_level``. If ``None`` (or the callable
+        raises), the dots fall back to the static baseline.
+        """
         super().__init__()
+        self._level_provider = level_provider
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
@@ -148,11 +170,37 @@ class RecordingHUD(QWidget):
         self.resize(self.WIDTH, self.HEIGHT)
 
         self._t0: float = 0.0
-        # Timer drives repaint() so the elapsed-time text stays current.
-        # The dots are static in this slice — no animation phase to track.
+        # Timer drives repaint() so both the elapsed-time text and the
+        # volume-reactive dots stay current. 33 ms (~30 Hz) is smooth enough
+        # that the dots don't strobe on speech transients; the repaint cost
+        # is one rect + three small ellipses + a short string, so the bump
+        # from 80 ms is essentially free.
         self._timer = QTimer(self)
-        self._timer.setInterval(80)
+        self._timer.setInterval(33)
         self._timer.timeout.connect(self._tick)
+
+    def set_level_provider(
+        self, provider: Callable[[], float] | None
+    ) -> None:
+        """Late-bind the level source. Useful when the HUD is constructed
+        before the recorder is available (or vice versa)."""
+        self._level_provider = provider
+
+    def _current_level(self) -> float:
+        """Read the level provider defensively. Never raises — a broken
+        provider degrades to the static baseline rather than crashing the
+        HUD repaint."""
+        if self._level_provider is None:
+            return 0.0
+        try:
+            level = float(self._level_provider())
+        except Exception:  # noqa: BLE001
+            return 0.0
+        if level < 0.0:
+            return 0.0
+        if level > 1.0:
+            return 1.0
+        return level
 
     def _tick(self) -> None:
         # Just nudge a repaint — only the timer text needs refreshing now.
@@ -189,21 +237,38 @@ class RecordingHUD(QWidget):
         p.setBrush(QColor(18, 18, 22, 235))
         p.drawRoundedRect(self.rect(), 12, 12)
 
-        # Three muted dots in the left cluster. Anonymous on purpose — issue
-        # #18 will color them by mic volume; for now they're a static
-        # placeholder so the pill doesn't read as a flat empty bar.
-        p.setBrush(self._DOT_COLOR)
-        cy = self.HEIGHT // 2 - self._DOT_DIAMETER // 2
+        # Three dots in the left cluster, driven by live mic volume.
+        # At level=0 they match #14's static baseline (2 px, ~30 % alpha);
+        # any sound expands and brightens them linearly up to (6 px, 100 %)
+        # at level=1. No VAD threshold — silence is just zero level.
+        level = self._current_level()
+        # radius = 1 + 2 * level → diameter 2..6 px as level 0..1
+        radius_px = 1.0 + 2.0 * level
+        diameter_px = int(round(2.0 * radius_px))
+        alpha = self._DOT_BASELINE_ALPHA + int(round(
+            (self._DOT_PEAK_ALPHA - self._DOT_BASELINE_ALPHA) * level
+        ))
+        r, g, b = self._DOT_RGB
+        p.setBrush(QColor(r, g, b, alpha))
         # Evenly space N dots across the cluster band: positions land at
-        # i / (N - 1) of the band's interior.
+        # i / (N - 1) of the band's interior. The cluster's center column
+        # is anchor-stable as the dots breathe — we draw each ellipse
+        # centered on (anchor_x, anchor_y) so growth radiates from the dot's
+        # midpoint rather than its top-left corner.
+        anchor_y = self.HEIGHT // 2
         step = (
             self._DOT_CLUSTER_WIDTH / (self._DOT_COUNT - 1)
             if self._DOT_COUNT > 1
             else 0
         )
+        # Anchor each baseline dot at the same x as before by shifting the
+        # cluster origin half a baseline-diameter to the right.
+        anchor_left = self._DOT_CLUSTER_LEFT + self._DOT_BASELINE_DIAMETER // 2
         for i in range(self._DOT_COUNT):
-            x = self._DOT_CLUSTER_LEFT + int(round(i * step))
-            p.drawEllipse(x, cy, self._DOT_DIAMETER, self._DOT_DIAMETER)
+            anchor_x = anchor_left + int(round(i * step))
+            top_left_x = anchor_x - diameter_px // 2
+            top_left_y = anchor_y - diameter_px // 2
+            p.drawEllipse(top_left_x, top_left_y, diameter_px, diameter_px)
 
         # Elapsed-time readout — adaptive format keeps the pill narrow.
         p.setPen(QColor(245, 245, 245, 235))

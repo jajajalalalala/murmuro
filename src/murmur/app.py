@@ -58,6 +58,12 @@ class MurmurApp:
     def state(self) -> State:
         return self._state
 
+    @property
+    def recorder(self) -> Recorder:
+        """Public handle so UI surfaces (e.g. the HUD) can poll
+        ``recorder.current_level`` without reaching into private attrs."""
+        return self._recorder
+
     def _set_state(self, s: State) -> None:
         self._state = s
         # Subscribers are best-effort; never let a UI bug crash the audio path.
