@@ -319,6 +319,13 @@ def _stylesheet(p: Palette) -> str:
         border-color: {STATE_DANGER};
         background: transparent;
     }}
+    /* Placeholder Delete: invisible chrome that still reserves the
+       row's fixed-width slot so action buttons line up across rows. */
+    QPushButton[placeholder="true"] {{
+        background: transparent;
+        border: none;
+        color: transparent;
+    }}
     /* The small × clear button on the hotkey field — borderless, dim,
        hover red. setProperty("clear", True) marks it. */
     QPushButton[clear="true"] {{

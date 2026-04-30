@@ -52,6 +52,24 @@ from .ui.theme import DARK, LIGHT, apply_theme, scroll_wrap
 _log = get_logger("main_window")
 
 
+def _palette_rail_rgb(palette) -> tuple[float, float, float]:
+    """Decode the active palette's ``rail_bg`` hex into 0–1 RGB floats.
+
+    Used to match NSWindow's background to the rail so the title-bar
+    zone blends with the window chrome instead of showing as a gray
+    strip. Falls back to the LIGHT palette's cream if anything looks
+    malformed — better a slight color mismatch than a crash on a
+    user-themed build.
+    """
+    hex_str = (palette.rail_bg or "#f1ebe2").lstrip("#")
+    if len(hex_str) != 6:
+        hex_str = "f1ebe2"
+    r = int(hex_str[0:2], 16) / 255.0
+    g = int(hex_str[2:4], 16) / 255.0
+    b = int(hex_str[4:6], 16) / 255.0
+    return r, g, b
+
+
 def _assets_dir() -> Path:
     """Return the directory containing bundled icon assets.
 
@@ -121,9 +139,10 @@ class MainWindow(QMainWindow):
         rail.setObjectName("rail")
         rail.setFixedWidth(170)
         rail_layout = QVBoxLayout(rail)
-        # Bottom margin pulls the About row up off the window edge so
-        # its text doesn't read as truncated against the bezel.
-        rail_layout.setContentsMargins(0, 0, 0, 12)
+        # Bottom margin: 24 px so the About row sits well clear of the
+        # window bezel. With only 12 px the row was reading as visually
+        # truncated against the rounded bottom corner.
+        rail_layout.setContentsMargins(0, 0, 0, 24)
         rail_layout.setSpacing(0)
 
         rail_layout.addWidget(self._build_brand_header())
@@ -347,7 +366,8 @@ class MainWindow(QMainWindow):
         Re-applies the global stylesheet via :func:`apply_theme` so every
         widget picks up the new palette without having to be reconstructed.
         Also flips the brand-glyph wordmark asset to the variant that
-        contrasts with the new palette."""
+        contrasts with the new palette, and refreshes the NSWindow
+        background color so the title-bar zone keeps matching the rail."""
         new_palette = DARK if want_dark else LIGHT
         if new_palette is self._active_palette:
             return
@@ -356,6 +376,10 @@ class MainWindow(QMainWindow):
             apply_theme(app, new_palette)
         self._active_palette = new_palette
         self._refresh_brand_glyph()
+        # Re-tint the NSWindow background so the title-bar zone keeps
+        # matching the (now-different) rail color.
+        if self._titlebar_styled:
+            self._configure_macos_titlebar()
 
     # ----- macOS title bar ------------------------------------------------
 
@@ -388,7 +412,7 @@ class MainWindow(QMainWindow):
             return
         try:
             import objc
-            from AppKit import NSWindowStyleMaskFullSizeContentView
+            from AppKit import NSColor, NSWindowStyleMaskFullSizeContentView
         except ImportError:
             _log.info("pyobjc not available; keeping default title bar")
             return
@@ -406,13 +430,20 @@ class MainWindow(QMainWindow):
             window.setStyleMask_(
                 window.styleMask() | NSWindowStyleMaskFullSizeContentView,
             )
-            # Window dragging is handled in Qt-land via _DragHeader on
-            # the brand bar (startSystemMove). Setting
-            # ``setMovableByWindowBackground:true`` here would conflict
-            # with that — clicks on the rail's empty area would start a
-            # native drag *and* a Qt drag simultaneously and AppKit
-            # would win the race, leaving the user unable to use the
-            # rail's clickable rows reliably.
+            # Match the NSWindow background to the rail color so the
+            # 28-px traffic-light zone above the brand header blends in
+            # rather than showing macOS's default neutral gray. Without
+            # this the user sees a clear gray strip at the top of the
+            # window even though we asked for a transparent title bar.
+            r, g, b = _palette_rail_rgb(self._active_palette)
+            window.setBackgroundColor_(
+                NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, 1.0),
+            )
+            # Window dragging is handled by the QApplication-level
+            # event filter on this MainWindow (see ``eventFilter``).
+            # We don't need ``setMovableByWindowBackground:true`` here
+            # — and turning it on would race the Qt drag against
+            # AppKit's drag pipeline in unpredictable ways.
         except Exception as e:  # noqa: BLE001
             _log.warning("could not configure macOS title bar: %s", e)
 

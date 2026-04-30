@@ -88,6 +88,15 @@ class _LocalModelRow(QFrame):
     use_requested = Signal(str)        # model_id
     delete_requested = Signal(str)     # model_id
 
+    # Fixed widths for the trailing columns so every row's status text,
+    # primary action, and delete button line up vertically — even when
+    # one row is "Active / In use" and another is "Not downloaded /
+    # Download". Without these, each row sized its own controls
+    # independently and the page looked uneven.
+    _STATUS_WIDTH = 110
+    _ACTION_WIDTH = 110
+    _DELETE_WIDTH = 80
+
     def __init__(
         self,
         model: LocalModel,
@@ -116,31 +125,45 @@ class _LocalModelRow(QFrame):
         text_col.setSpacing(2)
         text_col.addWidget(title)
         text_col.addWidget(meta)
+        # Optional one-line tagline under the size/flavor row. Wraps so
+        # longer guidance ("Slower start; needs ~3 GB RAM headroom.")
+        # doesn't blow out the row width.
+        if model.tagline:
+            tag = QLabel(model.tagline)
+            tag.setProperty("dim", True)
+            tag.setWordWrap(True)
+            text_col.addWidget(tag)
 
         self._status = QLabel()
         self._status.setProperty("hint", True)
+        self._status.setFixedWidth(self._STATUS_WIDTH)
+        self._status.setAlignment(_qt_right_center())
 
         # Inline progress bar — hidden until a download is in flight.
-        # Width is bounded so the row keeps its existing proportions when
-        # the bar appears in place of the status label.
+        # Same fixed width as the status column so swapping between
+        # them doesn't shift the surrounding controls horizontally.
         self._progress = QProgressBar()
         self._progress.setRange(0, 100)
         self._progress.setValue(0)
         self._progress.setTextVisible(True)
-        self._progress.setFixedWidth(160)
+        self._progress.setFixedWidth(self._STATUS_WIDTH)
         self._progress.setVisible(False)
 
         self._action = primary_button("")
+        self._action.setFixedWidth(self._ACTION_WIDTH)
         self._action.clicked.connect(self._on_action)
 
         # Secondary "Delete" button: removes the on-disk model files.
-        # Hidden until the model is downloaded; disabled while it's the
-        # active backend (would yank the rug from under a running app).
-        # Destructive styling so it doesn't compete visually with the
-        # primary Use / Download action.
+        # Always reserves its slot via fixed width — invisible when not
+        # applicable, so the action button next door never shifts as
+        # rows enter/leave the downloaded state.
         self._delete = destructive_button("Delete")
+        self._delete.setFixedWidth(self._DELETE_WIDTH)
         self._delete.clicked.connect(self._on_delete)
-        self._delete.setVisible(False)
+        # Use opacity-style hide via a placeholder so the row keeps
+        # its width: setVisible(False) collapses the slot, but we want
+        # the slot reserved. The simplest hack is to keep the button
+        # visible but disable it and clear its text — done in _refresh.
 
         row.addLayout(text_col, 1)
         row.addWidget(self._status)
@@ -205,7 +228,7 @@ class _LocalModelRow(QFrame):
         if self._is_downloading:
             self._action.setEnabled(False)
             self._action.setText("Downloading…")
-            self._delete.setVisible(False)
+            self._set_delete_inactive()
             # Show "Fetching…" until the first poll arrives with a real
             # percentage; from then on _set_progress takes over.
             if self._progress.value() == 0:
@@ -218,25 +241,44 @@ class _LocalModelRow(QFrame):
         if not downloaded:
             self._action.setText("Download")
             self._status.setText("Not downloaded")
-            self._delete.setVisible(False)
+            self._set_delete_inactive()
             return
-        # Downloaded — Delete is visible. It's only disabled for the
-        # currently-active model so the user can't yank it from under
-        # a live transcribe call; switching to another model re-enables.
-        self._delete.setVisible(True)
+        # Downloaded — Delete becomes a real button. It's disabled when
+        # this row is the active model so the user can't yank the
+        # backend out from under a live transcribe call; switching to
+        # another model re-enables.
         if self._is_active:
             self._action.setText("In use")
             self._action.setEnabled(False)
             self._status.setText("Active")
-            self._delete.setEnabled(False)
-            self._delete.setToolTip(
-                "Switch to another model first, then delete this one."
+            self._set_delete_inactive(
+                tooltip="Switch to another model first, then delete this one.",
             )
         else:
             self._action.setText("Use")
             self._status.setText("Downloaded")
+            self._delete.setText("Delete")
             self._delete.setEnabled(True)
+            # Use a Qt graphics-effect-free transparent state via stylesheet
+            # property; restore opaque appearance.
+            self._delete.setProperty("placeholder", False)
+            self._delete.style().unpolish(self._delete)
+            self._delete.style().polish(self._delete)
             self._delete.setToolTip("")
+
+    def _set_delete_inactive(self, tooltip: str = "") -> None:
+        """Render the Delete slot as a non-clickable placeholder.
+
+        Keeps the row's column geometry stable: the Delete button
+        always occupies its fixed-width slot, but it's invisible when
+        not applicable so it doesn't compete with the primary action.
+        """
+        self._delete.setText("")
+        self._delete.setEnabled(False)
+        self._delete.setProperty("placeholder", True)
+        self._delete.style().unpolish(self._delete)
+        self._delete.style().polish(self._delete)
+        self._delete.setToolTip(tooltip)
 
 
 # ---- Local panel --------------------------------------------------------------
@@ -594,6 +636,13 @@ class ModelsPage(QWidget):
 
 
 # ---- Helpers ------------------------------------------------------------------
+
+def _qt_right_center():
+    """Right-aligned, vertically-centered. Lazy import keeps offscreen
+    Qt happy on test machines that don't import QtCore eagerly."""
+    from PySide6.QtCore import Qt
+    return Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+
 
 def _format_size(mb: int) -> str:
     if mb <= 0:

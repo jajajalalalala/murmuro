@@ -175,9 +175,13 @@ def test_delete_button_hidden_when_not_downloaded(qapp, monkeypatch, tmp_path):
     page = ModelsPage(_cfg(model="base"))
     row = page._local_panel._rows["small"]
     assert row._action.text() == "Download"
-    # isHidden() reflects the local setVisible flag (vs. isVisible() which
-    # is False until the page is show()n by a real window).
-    assert row._delete.isHidden() is True
+    # The Delete slot stays in the layout so columns line up across
+    # rows, but it's a non-interactive placeholder when not applicable
+    # (no label, disabled, transparent via the ``placeholder`` style
+    # property). Pre-redesign this row hid the button entirely.
+    assert row._delete.isEnabled() is False
+    assert row._delete.text() == ""
+    assert row._delete.property("placeholder") is True
 
 
 def test_delete_button_disabled_for_active_model(qapp, monkeypatch, tmp_path):
@@ -218,7 +222,11 @@ def test_delete_removes_cache_directory(qapp, monkeypatch, tmp_path):
 
     assert not cache_dir.exists(), "cache directory should be gone"
     assert row._action.text() == "Download"
-    assert row._delete.isHidden() is True
+    # Delete slot reverts to the placeholder state (see
+    # test_delete_button_hidden_when_not_downloaded for the full
+    # rationale).
+    assert row._delete.isEnabled() is False
+    assert row._delete.text() == ""
 
 
 def test_delete_cancelled_keeps_files(qapp, monkeypatch, tmp_path):

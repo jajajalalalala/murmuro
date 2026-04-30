@@ -93,8 +93,8 @@ class AboutPage(QWidget):
             cap.setProperty("dim", True)
             return cap
 
-        self._hotkey_value = QLabel(self._cfg.hotkey)
-        self._backend_value = QLabel(self._cfg.backend)
+        self._hotkey_value = QLabel(_humanize_hotkey(self._cfg.hotkey))
+        self._backend_value = QLabel(_humanize_backend(self._cfg))
         self._model_value = QLabel(self._describe_model(cfg))
         info_grid.addRow(_caption("Hotkey"), self._hotkey_value)
         info_grid.addRow(_caption("Backend"), self._backend_value)
@@ -142,8 +142,8 @@ class AboutPage(QWidget):
 
     def set_config(self, cfg: config_mod.Config) -> None:
         self._cfg = cfg
-        self._hotkey_value.setText(cfg.hotkey)
-        self._backend_value.setText(cfg.backend)
+        self._hotkey_value.setText(_humanize_hotkey(cfg.hotkey))
+        self._backend_value.setText(_humanize_backend(cfg))
         self._model_value.setText(self._describe_model(cfg))
 
     def apply_to_config(self, cfg: config_mod.Config) -> config_mod.Config:
@@ -152,8 +152,27 @@ class AboutPage(QWidget):
 
     @staticmethod
     def _describe_model(cfg: config_mod.Config) -> str:
+        """Friendly model description: ``Base — 145 MB · Multilingual``.
+
+        Looks up the model in the curated registry to surface its
+        size and English/multilingual flavor; unknown ids (e.g.
+        hand-edited TOML) fall through to the raw id so we never
+        hide the truth from the user.
+        """
         if cfg.backend == "local":
-            return cfg.local.model or "(none selected)"
+            mid = cfg.local.model
+            if not mid:
+                return "(none selected)"
+            from .. import providers as providers_mod
+            entry = providers_mod.find_local_model(mid)
+            if entry is None:
+                return mid
+            size = (
+                f"{entry.size_mb / 1024:.1f} GB" if entry.size_mb >= 1024
+                else f"{entry.size_mb} MB"
+            )
+            flavor = "Multilingual" if entry.multilingual else "English-only"
+            return f"{entry.label} — {size} · {flavor}"
         if cfg.cloud_provider_id == "openai":
             return cfg.openai.model
         from .. import providers as providers_mod
@@ -164,6 +183,31 @@ class AboutPage(QWidget):
 
 def _platform_label() -> str:
     return f"{platform.system()} {platform.release()} ({platform.machine()})"
+
+
+def _humanize_hotkey(spec: str) -> str:
+    """Render a hotkey spec like ``<left_ctrl>`` as ``Left Control``.
+
+    Reuses the recorder's pretty-printer so the About page agrees with
+    the Shortcuts page and the Home status line.
+    """
+    from ..hotkey_recorder import humanize
+    return humanize(spec)
+
+
+def _humanize_backend(cfg: config_mod.Config) -> str:
+    """Render the backend axis as something a non-engineer can read.
+
+    ``local`` becomes ``On-device``; ``cloud`` shows the provider's
+    display name (e.g. ``OpenAI Whisper``) instead of a bare id.
+    """
+    if cfg.backend == "local":
+        return "On-device"
+    from .. import providers as providers_mod
+    provider = providers_mod.get_cloud(cfg.cloud_provider_id)
+    if provider is not None:
+        return provider.label
+    return cfg.cloud_provider_id.title()
 
 
 def _qt():

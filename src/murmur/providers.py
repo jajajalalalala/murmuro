@@ -45,6 +45,11 @@ class LocalModel:
     label: str
     size_mb: int
     multilingual: bool
+    # One-line description of where the model sits on the
+    # speed-vs-accuracy axis. Surfaced under the label on the Models
+    # page so users have something more grounded than "Tiny" / "Base"
+    # to pick from. Kept short — the row layout is already busy.
+    tagline: str = ""
 
     def cache_path(self, download_root: str | os.PathLike[str] | None = None) -> Path:
         """Path faster-whisper writes this model to under ``download_root``.
@@ -99,16 +104,16 @@ class CloudProvider:
 # ---- Curated baseline ---------------------------------------------------------
 
 _CURATED_LOCAL: tuple[LocalModel, ...] = (
-    LocalModel("tiny",             "Tiny",                 75,   True),
-    LocalModel("tiny.en",          "Tiny (English)",       75,   False),
-    LocalModel("base",             "Base",                 145,  True),
-    LocalModel("base.en",          "Base (English)",       145,  False),
-    LocalModel("small",            "Small",                466,  True),
-    LocalModel("small.en",         "Small (English)",      466,  False),
-    LocalModel("medium",           "Medium",               1500, True),
-    LocalModel("medium.en",        "Medium (English)",     1500, False),
-    LocalModel("large-v3",         "Large v3",             3000, True),
-    LocalModel("distil-large-v3",  "Distil Large v3 (EN)", 1500, False),
+    LocalModel("tiny",            "Tiny",                75,   True,  "Fastest. Light typos on tricky audio."),
+    LocalModel("tiny.en",         "Tiny (English)",      75,   False, "Fastest, English-only. A touch sharper than Tiny."),
+    LocalModel("base",            "Base",                145,  True,  "Recommended starting point — balanced speed and accuracy."),
+    LocalModel("base.en",         "Base (English)",      145,  False, "Recommended for English speakers."),
+    LocalModel("small",           "Small",               466,  True,  "Noticeably more accurate, still real-time on most Macs."),
+    LocalModel("small.en",        "Small (English)",     466,  False, "Small's accuracy boost, English-only."),
+    LocalModel("medium",          "Medium",              1500, True,  "Strong accuracy. Slower start; needs ~3 GB RAM headroom."),
+    LocalModel("medium.en",       "Medium (English)",    1500, False, "Medium's accuracy, English-only."),
+    LocalModel("large-v3",        "Large v3",            3000, True,  "Best accuracy. Slow on CPU — best paired with a GPU/Neural Engine."),
+    LocalModel("distil-large-v3", "Distil Large v3 (EN)", 1500, False, "Near-Large accuracy at half the size; English-only."),
 )
 
 # Phase 1 ships with one wired-up cloud provider (OpenAI). Phase 2 fills
