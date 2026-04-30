@@ -135,6 +135,28 @@ _CURATED_CLOUD: tuple[CloudProvider, ...] = (
         rate_hint="~$0.006 / minute",
         curated=True,
     ),
+    # Groq — OpenAI-compatible audio endpoint, hosts Whisper Large v3
+    # variants on their LPU stack. Real free tier (rate-limited but
+    # generous; check console.groq.com for current quotas) and the
+    # ``-turbo`` model is what we default to: ~10x faster than v3 on
+    # short clips with negligible accuracy loss for dictation.
+    CloudProvider(
+        id="groq",
+        label="Groq",
+        base_url="https://api.groq.com/openai/v1",
+        default_model="whisper-large-v3-turbo",
+        models=("whisper-large-v3-turbo", "whisper-large-v3", "distil-whisper-large-v3-en"),
+        api_key_env="GROQ_API_KEY",
+        rate_hint="Free tier · paid: $0.04 / hour",
+        curated=True,
+    ),
+    # NB: DeepSeek's public API is LLM-only at the moment — their
+    # endpoint returns 404 on /audio/transcriptions. Empirically
+    # verified with a real key during PR #68. If they add Whisper
+    # later (their base URL is OpenAI-compatible) this entry can
+    # land. For now, users wanting to dictate via DeepSeek would
+    # have to add a custom provider pointing at a third-party
+    # gateway — not a baseline we can guarantee.
 )
 
 

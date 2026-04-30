@@ -482,10 +482,24 @@ class _CloudPanel(QWidget):
         self._key_status = QLabel()
         self._key_status.setProperty("hint", True)
         layout.addRow("", self._key_status)
+
+        # Test-connection row: button + status label. Sends a 1-second
+        # silence clip to the endpoint so the user can validate the
+        # key + base URL combination before discovering the breakage
+        # on a real push-to-talk press.
+        self._test_btn = primary_button("Test connection")
+        self._test_btn.clicked.connect(self._on_test_clicked)
+        self._test_status = QLabel()
+        self._test_status.setProperty("hint", True)
+        self._test_status.setWordWrap(True)
+        layout.addRow(self._test_btn, self._test_status)
+
         outer.addWidget(cloud_card)
         outer.addStretch(1)
 
         self.api_key_env.textChanged.connect(self._refresh_key_status)
+        self._test_thread: QThread | None = None
+        self._test_worker: _ProbeWorker | None = None
 
     def set_provider(self, provider: CloudProvider, cfg: config_mod.Config) -> None:
         self._provider = provider
@@ -526,6 +540,69 @@ class _CloudPanel(QWidget):
             self._key_status.setText(
                 f"⚠ {env} not set in this session. Export it before using this backend."
             )
+
+    # -- Test connection --------------------------------------------------
+
+    def _on_test_clicked(self) -> None:
+        """Spin up a background probe so the UI stays responsive.
+
+        ``probe_connection`` does a real network round-trip to the
+        provider's transcription endpoint with a 1-second silence
+        clip — running on the UI thread would freeze the window for
+        500ms-2s on the happy path and longer on timeouts. The worker
+        emits its result via Qt signal, which we render in
+        ``_on_test_result``.
+        """
+        if self._provider is None or self._test_thread is not None:
+            return
+        env = self.api_key_env.text().strip() or self._provider.api_key_env
+        api_key = os.environ.get(env, "")
+        model = self.model_combo.currentText() or self._provider.default_model
+        self._test_btn.setEnabled(False)
+        self._test_status.setText("Pinging…")
+
+        self._test_thread = QThread(self)
+        self._test_worker = _ProbeWorker(
+            base_url=self._provider.base_url or "https://api.openai.com/v1",
+            api_key=api_key,
+            model=model,
+        )
+        self._test_worker.moveToThread(self._test_thread)
+        self._test_thread.started.connect(self._test_worker.run)
+        self._test_worker.finished.connect(self._on_test_result)
+        self._test_worker.finished.connect(self._test_thread.quit)
+        self._test_worker.finished.connect(self._test_worker.deleteLater)
+        self._test_thread.finished.connect(self._test_thread.deleteLater)
+        self._test_thread.start()
+
+    def _on_test_result(self, ok: bool, message: str) -> None:
+        prefix = "✓ " if ok else "⚠ "
+        self._test_status.setText(prefix + message)
+        self._test_btn.setEnabled(True)
+        self._test_thread = None
+        self._test_worker = None
+
+
+class _ProbeWorker(QObject):
+    """Threaded wrapper around :func:`probe_connection`.
+
+    Lives long enough to emit one ``finished(ok, message)`` signal,
+    then deletes itself. The Cloud panel keeps a reference until the
+    signal fires so Qt doesn't garbage-collect it mid-call.
+    """
+
+    finished = Signal(bool, str)
+
+    def __init__(self, *, base_url: str, api_key: str, model: str) -> None:
+        super().__init__()
+        self.base_url = base_url
+        self.api_key = api_key
+        self.model = model
+
+    def run(self) -> None:
+        from ..transcribe.openai_compatible import probe_connection
+        ok, message = probe_connection(self.base_url, self.api_key, self.model)
+        self.finished.emit(ok, message)
 
 
 # ---- The page itself ----------------------------------------------------------

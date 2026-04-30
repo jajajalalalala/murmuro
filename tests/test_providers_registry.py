@@ -86,12 +86,20 @@ def test_list_local_returns_curated_baseline(isolated_cfg):
     assert "distil-large-v3" in ids
 
 
-def test_list_cloud_returns_curated_openai_on_fresh_config(isolated_cfg):
+def test_list_cloud_returns_curated_baseline_on_fresh_config(isolated_cfg):
+    """The curated list ships OpenAI plus the OpenAI-compatible
+    free/cheap alternatives that actually expose a Whisper-style
+    transcription endpoint (currently: Groq). DeepSeek's API is
+    LLM-only and returns 404 on /audio/transcriptions — verified
+    empirically in #68 — so it isn't shipped as a curated option."""
     cloud = providers.list_cloud()
-    assert [p.id for p in cloud] == ["openai"]
-    assert cloud[0].base_url == "https://api.openai.com/v1"
-    assert cloud[0].default_model == "whisper-1"
-    assert cloud[0].curated is True
+    ids = [p.id for p in cloud]
+    assert "openai" in ids
+    assert "groq" in ids
+    openai = next(p for p in cloud if p.id == "openai")
+    assert openai.base_url == "https://api.openai.com/v1"
+    assert openai.default_model == "whisper-1"
+    assert openai.curated is True
 
 
 def test_get_cloud_finds_curated(isolated_cfg):
@@ -123,7 +131,11 @@ def _custom_provider(provider_id: str = "my-minimax") -> providers.CloudProvider
 def test_register_appears_in_list_cloud_and_persists(isolated_cfg, fake_keyring):
     providers.register(_custom_provider("my-minimax"))
     ids = [p.id for p in providers.list_cloud()]
-    assert ids == ["openai", "my-minimax"]
+    # Custom entries land after the curated baseline; curated is
+    # ``openai`` + free/cheap alternatives (Groq, DeepSeek), and
+    # ``my-minimax`` should sit at the end.
+    assert ids[-1] == "my-minimax"
+    assert "my-minimax" in ids
     # Persisted to the bound config.
     assert [c.provider_id for c in isolated_cfg.custom_cloud] == ["my-minimax"]
     # And to the on-disk TOML.
@@ -210,13 +222,17 @@ def test_unregister_unknown_provider_raises(isolated_cfg, fake_keyring):
 def test_reload_from_config_rebuilds_from_disk(isolated_cfg, fake_keyring):
     providers.register(_custom_provider("first"))
     providers.register(_custom_provider("second"))
-    # Drop runtime state by binding to a fresh empty config.
+    curated_ids = {p.id for p in providers.list_cloud() if p.curated}
+    # Drop runtime state by binding to a fresh empty config — only
+    # the curated baseline should remain.
     providers.reload_from_config(config_mod.Config())
-    assert [p.id for p in providers.list_cloud()] == ["openai"]
-    # Re-binding to the persisted config restores both entries.
+    assert {p.id for p in providers.list_cloud()} == curated_ids
+    # Re-binding to the persisted config restores both custom entries.
     reloaded = config_mod.load()
     providers.reload_from_config(reloaded)
-    assert [p.id for p in providers.list_cloud()] == ["openai", "first", "second"]
+    ids = [p.id for p in providers.list_cloud()]
+    assert ids[-2:] == ["first", "second"]
+    assert {p.id for p in providers.list_cloud() if p.curated} == curated_ids
 
 
 def test_toml_roundtrip_preserves_custom_providers(isolated_cfg, fake_keyring):
