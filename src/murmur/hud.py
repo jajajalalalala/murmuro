@@ -116,9 +116,11 @@ def _apply_nonactivating_panel_style(widget: QWidget) -> None:
 
 
 class RecordingHUD(QWidget):
-    # Compact pill — half the previous 200x48 footprint so it competes
-    # less with whatever the user is reading while they dictate.
-    WIDTH = 100
+    # Compact pill. The 88 px width is sized to the longest realistic timer
+    # ("1m 23s" worst-case for a typical push-to-talk burst) plus the bar
+    # cluster, so the content reads close to centered rather than crowded
+    # to the left with empty space on the right.
+    WIDTH = 88
     HEIGHT = 24
     # Vertical gap above the screen's bottom edge. Big enough to clear the
     # Dock when it's pinned to the bottom, small enough to read as "near the
@@ -144,7 +146,7 @@ class RecordingHUD(QWidget):
     _BAR_PEAK_HEIGHT = 18
     _BAR_BASELINE_ALPHA = 127  # 50 % of 255
     _BAR_PEAK_ALPHA = 255
-    _BAR_CLUSTER_LEFT = 8  # px from left edge of pill to first bar's left edge
+    _BAR_CLUSTER_LEFT = 10  # px from left edge of pill to first bar's left edge
     # 5 bars × 2 px + 4 gaps × 3 px = 22 px total horizontal footprint.
     _BAR_CLUSTER_WIDTH = (
         _BAR_COUNT * _BAR_WIDTH + (_BAR_COUNT - 1) * _BAR_GAP

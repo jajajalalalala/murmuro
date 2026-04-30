@@ -36,9 +36,11 @@ def test_hud_constructs(qapp):
 
 
 def test_hud_bounds_are_compact_pill(qapp):
-    """The redesigned HUD is a 100x24 pill — half the previous footprint."""
+    """The redesigned HUD is an 88x24 pill — sized to fit the worst-case
+    timer ("1m 23s") with the bar cluster, so content reads close to
+    centered rather than left-crowded with empty space on the right."""
     hud = RecordingHUD()
-    assert hud.width() == 100
+    assert hud.width() == 88
     assert hud.height() == 24
 
 
