@@ -12,9 +12,10 @@ This widget never mutates config; it's purely diagnostic.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtGui import QFocusEvent, QKeyEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from .fn_monitor import FnFocusMonitor
 from .hotkey_recorder import humanize, resolve_key_event
 
 
@@ -30,6 +31,15 @@ class KeyProbe(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # Cocoa never delivers ``keyDown:`` for Fn — only ``flagsChanged:``.
+        # The probe needs the same NSEvent side channel as the recorder so
+        # users can confirm Fn is recognized. Lifetime is tied to focus so
+        # we don't leak handlers when the user navigates away. No-op
+        # off-macOS / when AppKit is unavailable.
+        self._fn_monitor = FnFocusMonitor(
+            on_press=self._on_fn_press,
+            on_release=lambda: None,
+        )
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -92,3 +102,21 @@ class KeyProbe(QWidget):
         self._kind_label.setText(
             "Modifier (works alone)" if is_modifier else "Regular key (use in combo)"
         )
+
+    # ----- Focus lifecycle for the Fn side channel --------------------
+
+    def focusInEvent(self, event: QFocusEvent) -> None:  # noqa: N802 (Qt name)
+        self._fn_monitor.start()
+        super().focusInEvent(event)
+
+    def focusOutEvent(self, event: QFocusEvent) -> None:  # noqa: N802
+        self._fn_monitor.stop()
+        super().focusOutEvent(event)
+
+    # ----- Fn side channel callback -----------------------------------
+
+    def _on_fn_press(self) -> None:
+        """Render Fn as if it had arrived through Qt's keyPressEvent."""
+        self._target.setText(humanize("<fn>"))
+        self._spec_label.setText("<fn>")
+        self._kind_label.setText("Modifier (works alone)")

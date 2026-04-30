@@ -216,3 +216,144 @@ def test_set_value_updates_display(qapp):
     rec.set_value("<right_alt>")
     assert rec.value() == "<right_alt>"
     assert rec._label.text() == "Right Option"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Fn side-channel: NSEvent local monitor
+# ─────────────────────────────────────────────────────────────────────────────
+# Cocoa never delivers ``keyDown:`` for Fn (it shows up only as
+# ``flagsChanged:`` with NSEventModifierFlagFunction = 0x800000), so Qt's
+# ``keyPressEvent`` never fires for it. The recorder installs an NSEvent
+# local monitor while a recording session is active. These tests stub the
+# AppKit shim so they run on any platform.
+
+
+class _FakeAppKit:
+    """Minimal AppKit stand-in: records monitor add / remove calls and
+    exposes a ``fire(flags)`` helper so tests can drive the handler."""
+
+    NSEventMaskFlagsChanged = 1 << 12  # value irrelevant; we only check identity
+
+    def __init__(self) -> None:
+        self.added: list[object] = []  # opaque tokens we've handed out
+        self.removed: list[object] = []
+        self._handlers: list = []  # parallel to ``added``: the callback to fire
+        self._next_token = 0
+
+    # NSEvent surface -----------------------------------------------------
+
+    class _NSEventStub:
+        def __init__(self, outer: _FakeAppKit) -> None:
+            self._outer = outer
+
+        def addLocalMonitorForEventsMatchingMask_handler_(  # noqa: N802
+            self, mask, handler
+        ):
+            token = object()
+            self._outer.added.append(token)
+            self._outer._handlers.append(handler)
+            return token
+
+        def addGlobalMonitorForEventsMatchingMask_handler_(  # noqa: N802
+            self, mask, handler
+        ):
+            return self.addLocalMonitorForEventsMatchingMask_handler_(mask, handler)
+
+        def removeMonitor_(self, token):  # noqa: N802
+            self._outer.removed.append(token)
+
+    @property
+    def NSEvent(self):  # noqa: N802 (mirrors the AppKit name)
+        return self._NSEventStub(self)
+
+    # Test-side helpers ---------------------------------------------------
+
+    def fire(self, flags: int) -> None:
+        """Invoke every installed handler with a fake flagsChanged event."""
+
+        class _Event:
+            def __init__(self, flags: int) -> None:
+                self._flags = flags
+
+            def modifierFlags(self):  # noqa: N802 (mirrors NSEvent)
+                return self._flags
+
+        for h in self._handlers:
+            h(_Event(flags))
+
+
+def _install_fake_appkit(monkeypatch) -> _FakeAppKit:
+    """Patch ``sys.platform`` to ``darwin`` and inject a fake ``AppKit``
+    module so :class:`FnFocusMonitor` can import it."""
+    import types
+
+    fake = _FakeAppKit()
+    fake_module = types.SimpleNamespace(
+        NSEvent=fake.NSEvent,
+        NSEventMaskFlagsChanged=fake.NSEventMaskFlagsChanged,
+    )
+    monkeypatch.setitem(sys.modules, "AppKit", fake_module)
+    monkeypatch.setattr("murmur.fn_monitor.sys.platform", "darwin")
+    return fake
+
+
+_NS_FN_FLAG = 1 << 23
+
+
+def test_recording_installs_fn_monitor(monkeypatch, qapp):
+    fake = _install_fake_appkit(monkeypatch)
+    rec = HotkeyRecorder("<f9>")
+    assert fake.added == []  # not yet recording — nothing armed
+    rec._start_recording()
+    assert len(fake.added) == 1
+    assert fake.removed == []
+    rec._stop_recording()
+    # Exactly one monitor install / one teardown for the session.
+    assert fake.removed == fake.added
+
+
+def test_fn_press_via_local_monitor_commits(monkeypatch, qapp):
+    """Real-hardware path: the user presses Fn, NSEvent fires the handler,
+    the recorder commits ``<fn>`` and tears the monitor down."""
+    fake = _install_fake_appkit(monkeypatch)
+    rec = HotkeyRecorder("<f9>")
+    rec._start_recording()
+
+    # Rising edge: Fn down — recorder treats it as a held modifier.
+    fake.fire(_NS_FN_FLAG)
+    assert rec._recording  # not yet committed; user still holding Fn
+    assert rec._max_modifier_combo == ["<fn>"]
+
+    # Falling edge: Fn up — modifier-only commit fires.
+    fake.fire(0)
+    assert rec.value() == "<fn>"
+    assert not rec._recording
+    # Monitor torn down on commit (no leaked handler).
+    assert fake.removed == fake.added
+
+
+def test_fn_release_resets_state_after_cancel(monkeypatch, qapp):
+    """If the user cancels with Esc mid-session, the Fn monitor must still
+    be removed."""
+    fake = _install_fake_appkit(monkeypatch)
+    rec = HotkeyRecorder("<right_alt>")
+    rec._start_recording()
+    fake.fire(_NS_FN_FLAG)  # press Fn
+    # Esc cancels only when nothing is held, so release Fn first.
+    fake.fire(0)
+    # Releasing Fn alone commits, which is what the user expects — but
+    # the monitor must still be cleaned up.
+    assert fake.removed == fake.added
+
+
+def test_fn_monitor_noop_off_macos(monkeypatch, qapp):
+    """On non-darwin platforms the monitor must not attempt to import
+    AppKit; ``_start_recording`` and ``_stop_recording`` should still be
+    safe and the recorder should otherwise behave normally."""
+    monkeypatch.setattr("murmur.fn_monitor.sys.platform", "linux")
+    rec = HotkeyRecorder("<f9>")
+    rec._start_recording()
+    # Existing modifier-only path still works exactly as before.
+    _press(rec, _VK_RIGHT_ALT)
+    _release(rec, _VK_RIGHT_ALT)
+    assert rec.value() == "<right_alt>"

@@ -21,6 +21,8 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
+from .fn_monitor import FnFocusMonitor
+
 # ─────────────────────────────────────────────────────────────────────────────
 # macOS virtual keycodes
 # ─────────────────────────────────────────────────────────────────────────────
@@ -177,6 +179,15 @@ class HotkeyRecorder(QWidget):
         # Largest combo of modifiers held simultaneously this session — what
         # we commit if the user releases without pressing a non-modifier.
         self._max_modifier_combo: list[str] = []
+        # Side-channel monitor for the Fn (🌐) key. Cocoa never delivers
+        # ``keyDown:`` for Fn — only ``flagsChanged:`` — so Qt's
+        # ``keyPressEvent`` never fires for it. Without this monitor the
+        # recorder waits forever when the user presses Fn. Installed only
+        # while a recording session is active. See fn_monitor.py.
+        self._fn_monitor = FnFocusMonitor(
+            on_press=self._on_fn_press,
+            on_release=self._on_fn_release,
+        )
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -213,6 +224,8 @@ class HotkeyRecorder(QWidget):
         self._label.setText("Listening…")
         self.setFocus(Qt.FocusReason.OtherFocusReason)
         self.grabKeyboard()
+        # Arm the Fn-key side channel for this session. No-op off-macOS.
+        self._fn_monitor.start()
 
     def _stop_recording(self) -> None:
         self._recording = False
@@ -221,6 +234,9 @@ class HotkeyRecorder(QWidget):
         self._button.setText("Record…")
         self._button.setEnabled(True)
         self.releaseKeyboard()
+        # Tear down the Fn monitor so we don't leak NSEvent handlers
+        # across record sessions.
+        self._fn_monitor.stop()
 
     def _commit(self, spec: str) -> None:
         self._spec = spec
@@ -230,6 +246,31 @@ class HotkeyRecorder(QWidget):
 
     def _token_for(self, event: QKeyEvent) -> tuple[str, bool] | None:
         return resolve_key_event(event)
+
+    # ----- Fn side channel (NSEvent flagsChanged) ---------------------
+    # Cocoa doesn't deliver keyDown:/keyUp: for Fn — only flagsChanged:.
+    # The FnFocusMonitor turns those flag transitions into edge-triggered
+    # callbacks that drive the same state machine as Qt key events.
+
+    def _on_fn_press(self) -> None:
+        if not self._recording:
+            return
+        token = "<fn>"
+        if token not in self._held:
+            self._held.add(token)
+            if token not in self._max_modifier_combo:
+                self._max_modifier_combo.append(token)
+        self._label.setText(
+            " + ".join(humanize(t) for t in self._max_modifier_combo) + " …"
+        )
+
+    def _on_fn_release(self) -> None:
+        if not self._recording:
+            return
+        token = "<fn>"
+        self._held.discard(token)
+        if not self._held and self._max_modifier_combo:
+            self._commit("+".join(self._max_modifier_combo))
 
     # ----- Qt key handling --------------------------------------------
 
