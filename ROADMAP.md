@@ -114,7 +114,7 @@ Small fit-and-finish work that landed after v0.5 was tagged, ahead of the v1.0 o
 - [x] Packaging: `pyinstaller` → `Murmur.app` (mac) — see `build.sh`
 - [ ] Packaging: `pyinstaller` → `Murmur.exe` (Windows)
 - [ ] Code-signing notes (mac notarization optional for personal use)
-- [ ] GitHub Actions: build + release artifacts on tag
+- [x] GitHub Actions: build + release artifacts on tag (`.github/workflows/release.yml` — push a `v*` tag, get a draft Release with the .dmg attached)
 - [ ] Polished README with screenshots
 
 **Done when:** A non-Python user can download a release, double-click, and dictate within 2 minutes.
