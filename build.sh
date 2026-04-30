@@ -40,8 +40,12 @@ if [[ ! -f assets/icon.png ]]; then
     echo "[build.sh] generating assets/icon.png"
     .venv/bin/python tools/make_icon.py
 fi
-if [[ ! -f assets/icon.icns ]]; then
-    echo "[build.sh] generating assets/icon.icns"
+# Regenerate the .icns whenever icon.png is newer (or .icns missing).
+# Previous behavior of "skip if file exists" meant a tweaked icon.png
+# left a stale .icns on disk and the bundled .app shipped the old
+# Finder icon — exactly what happened on a v0.6 rebuild.
+if [[ ! -f assets/icon.icns || assets/icon.png -nt assets/icon.icns ]]; then
+    echo "[build.sh] generating assets/icon.icns (icon.png changed)"
     bash tools/make_icns.sh assets/icon.png assets/icon.icns
 fi
 
@@ -101,7 +105,17 @@ echo "[build.sh] patching Info.plist..."
 echo "[build.sh] ad-hoc signing..."
 codesign --force --deep --sign - "$APP" >/dev/null
 
+# 7. Nudge Finder to drop its cached icon for this bundle. macOS keeps a
+#    per-bundle icon cache keyed by the bundle's mtime; touching the
+#    bundle bumps that mtime so the next Finder render reads the freshly
+#    embedded .icns instead of the cached one. Without this, even a
+#    correctly-rebuilt .app shows up with the previous icon until the
+#    user logs out or runs `killall Finder`.
+touch "$APP"
+
 echo
 echo "[build.sh] build complete."
 echo "  open dist/Murmur.app"
 echo "  or drag dist/Murmur.app into /Applications"
+echo
+echo "  if Finder still shows the old icon, run: killall Finder"
