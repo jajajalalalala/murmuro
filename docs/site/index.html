@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Murmur — press a key, speak, get text</title>
+  <meta name="description" content="Free, local-first dictation for macOS. Hold a hotkey, speak, release — your words appear at the cursor. No subscription, no cloud, no telemetry." />
+
+  <!-- Open Graph + Twitter card -->
+  <meta property="og:title" content="Murmur — press a key, speak, get text" />
+  <meta property="og:description" content="Free, local-first dictation for macOS. No subscription, no cloud, no telemetry." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://jajajalalalala.github.io/murmur/" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" type="image/png" href="icon.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <img class="brand" src="icon.png" alt="Murmur app icon" width="64" height="64" />
+      <h1>Press a key.<br />Speak. Get text.</h1>
+      <p class="tagline">Free, local-first dictation for macOS.</p>
+
+      <!-- Hero placeholder — once #22 produces ``assets/hero.gif`` the build
+           workflow will copy it into ``docs/site/`` and we drop the
+           ``data-placeholder`` attribute. -->
+      <div class="hero-frame" data-placeholder="true">
+        <div class="hero-frame-inner">
+          <span>5-second demo coming soon</span>
+        </div>
+      </div>
+
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/jajajalalalala/murmur/releases/latest">
+          Download for Mac
+          <span class="btn-sub">macOS 13+ · Apple Silicon &amp; Intel</span>
+        </a>
+        <a class="btn btn-secondary" href="https://github.com/jajajalalalala/murmur">
+          Source on GitHub
+        </a>
+      </div>
+    </section>
+
+    <section class="pitch">
+      <p>
+        <strong>Murmur</strong> is a free, open-source dictation tool that
+        runs Whisper on your laptop. Hold a hotkey, speak, release — your
+        words appear at the cursor in any app. No subscription, no
+        cloud round-trip, no telemetry. The app weighs &lt;200 MB and
+        the smallest model adds another 75 MB.
+      </p>
+
+      <ul class="features">
+        <li><strong>Local first.</strong> Runs <a href="https://github.com/SYSTRAN/faster-whisper">faster-whisper</a> on your machine. No internet needed.</li>
+        <li><strong>Optional cloud.</strong> Plug in a Groq or OpenAI key for faster transcription on long clips.</li>
+        <li><strong>Auto-paste at cursor.</strong> Works in browsers, IDEs, terminals, Slack, Notion, Mail.</li>
+        <li><strong>Menu-bar only.</strong> No Dock icon, no focus stealing.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      <a href="https://github.com/jajajalalalala/murmur/blob/main/LICENSE">MIT-licensed</a>
+      &middot;
+      <a href="https://github.com/jajajalalalala/murmur">github.com/jajajalalalala/murmur</a>
+      &middot;
+      <a href="https://github.com/jajajalalalala/murmur/issues">Issues</a>
+    </p>
+  </footer>
+</body>
+</html>

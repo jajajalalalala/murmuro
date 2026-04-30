@@ -1,0 +1,209 @@
+/* Splash-page styles for the Murmur GitHub Pages site (#23).
+ *
+ * Deliberately tiny: vanilla CSS, no preprocessor, no framework. The
+ * palette mirrors the in-app theme (terracotta accent on a warm-cream
+ * surface) so a visitor who downloads the .dmg sees the same brand
+ * the moment the app launches.
+ */
+
+:root {
+  --rail-bg: #f1ebe2;          /* matches app palette LIGHT.rail_bg */
+  --surface: #fbf8f4;          /* LIGHT.surface */
+  --text: #2a2520;
+  --text-dim: #857d72;
+  --accent: #dd6f3a;           /* terracotta — current app accent */
+  --accent-dark: #c25e2a;
+  --accent-text: #ffffff;
+  --border: #ddd5c8;
+  --shadow: 0 1px 2px rgba(42, 37, 32, 0.06), 0 8px 24px rgba(42, 37, 32, 0.06);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--rail-bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Helvetica Neue", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent-dark); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 56px 24px 32px;
+}
+
+/* ---- Hero ------------------------------------------------------------- */
+
+.hero { text-align: center; }
+
+.hero .brand {
+  display: block;
+  margin: 0 auto 18px;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.hero h1 {
+  font-size: 56px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+  margin: 0 0 14px;
+}
+
+.hero .tagline {
+  font-size: 19px;
+  color: var(--text-dim);
+  margin: 0 0 32px;
+}
+
+/* Demo frame — once the GIF lands we swap the inner placeholder for
+ * an <img>. The frame keeps a 16:9 aspect so the layout doesn't jump
+ * when the asset is added. */
+.hero-frame {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  margin: 0 auto 32px;
+  aspect-ratio: 16 / 9;
+  max-width: 640px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-frame[data-placeholder="true"] .hero-frame-inner {
+  color: var(--text-dim);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.hero-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ---- CTAs ------------------------------------------------------------- */
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 16px;
+  text-decoration: none;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.btn:hover { text-decoration: none; transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow: var(--shadow);
+}
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-primary .btn-sub {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { border-color: var(--text-dim); }
+
+/* ---- Pitch ------------------------------------------------------------ */
+
+.pitch {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+.pitch p {
+  font-size: 17px;
+  margin: 0 0 24px;
+}
+
+.pitch .features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.pitch .features li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-size: 15px;
+}
+
+/* ---- Footer ----------------------------------------------------------- */
+
+footer {
+  text-align: center;
+  padding: 32px 24px 56px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+footer a { color: var(--text-dim); }
+
+/* ---- Responsive ------------------------------------------------------- */
+
+@media (max-width: 520px) {
+  main { padding: 36px 18px 24px; }
+  .hero h1 { font-size: 40px; }
+  .hero .tagline { font-size: 17px; }
+  .cta-row { flex-direction: column; align-items: stretch; }
+  .btn { padding: 16px 22px; }
+}
+
+/* ---- Dark mode (system-driven) --------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --rail-bg: #1c1813;
+    --surface: #221d17;
+    --text: #f5efe6;
+    --text-dim: #b8aea0;
+    --border: #3a3127;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  .btn-secondary { color: var(--text); }
+}
