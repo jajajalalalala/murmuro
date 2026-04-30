@@ -27,7 +27,7 @@
 | `hotkey_recorder.py` | Click-to-record QWidget capturing hotkey by pressing it | `PySide6` |
 | `transcribe/base.py` | `Transcriber` Protocol | — |
 | `transcribe/local.py` | `faster-whisper` backend, lazy load | `faster-whisper` |
-| `transcribe/openai_api.py` | OpenAI Whisper API backend | `openai` |
+| `transcribe/openai_compatible.py` | OpenAI-compatible cloud backend (OpenAI, Groq, DeepSeek, custom) | `openai` |
 | `transcribe/factory.py` | Build a `Transcriber` from a `Config` | — |
 | `inject.py` | Copy + CGEventPost ⌘V (mac) / `pynput` paste (win) | `pyperclip`, `pynput`, `ctypes` |
 | `hud.py` | Floating recording pill; non-activating NSPanel via pyobjc | `PySide6`, `pyobjc-framework-Cocoa` |
