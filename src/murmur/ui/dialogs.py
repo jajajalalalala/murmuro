@@ -14,11 +14,9 @@ follow-ups.
 from __future__ import annotations
 
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -29,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from .._logging import get_logger
-from .theme import LIGHT, DARK, primary_button
+from .theme import DARK, LIGHT, primary_button
 
 _log = get_logger("ui.dialogs")
 

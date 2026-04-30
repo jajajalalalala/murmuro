@@ -103,17 +103,21 @@ class CloudProvider:
 
 # ---- Curated baseline ---------------------------------------------------------
 
+# Hand-aligned columns purely so the file reads as a table. The
+# trailing taglines push a couple of rows past the 100-char wrap; we
+# tag them noqa rather than reflow the whole block — the table shape
+# is more useful to scan than strict line-length compliance here.
 _CURATED_LOCAL: tuple[LocalModel, ...] = (
-    LocalModel("tiny",            "Tiny",                75,   True,  "Fastest. Light typos on tricky audio."),
-    LocalModel("tiny.en",         "Tiny (English)",      75,   False, "Fastest, English-only. A touch sharper than Tiny."),
-    LocalModel("base",            "Base",                145,  True,  "Recommended starting point — balanced speed and accuracy."),
-    LocalModel("base.en",         "Base (English)",      145,  False, "Recommended for English speakers."),
-    LocalModel("small",           "Small",               466,  True,  "Noticeably more accurate, still real-time on most Macs."),
-    LocalModel("small.en",        "Small (English)",     466,  False, "Small's accuracy boost, English-only."),
-    LocalModel("medium",          "Medium",              1500, True,  "Strong accuracy. Slower start; needs ~3 GB RAM headroom."),
-    LocalModel("medium.en",       "Medium (English)",    1500, False, "Medium's accuracy, English-only."),
-    LocalModel("large-v3",        "Large v3",            3000, True,  "Best accuracy. Slow on CPU — best paired with a GPU/Neural Engine."),
-    LocalModel("distil-large-v3", "Distil Large v3 (EN)", 1500, False, "Near-Large accuracy at half the size; English-only."),
+    LocalModel("tiny",            "Tiny",                 75,   True,  "Fastest. Light typos on tricky audio."),  # noqa: E501
+    LocalModel("tiny.en",         "Tiny (English)",       75,   False, "Fastest, English-only. A touch sharper than Tiny."),  # noqa: E501
+    LocalModel("base",            "Base",                 145,  True,  "Recommended starting point — balanced speed and accuracy."),  # noqa: E501
+    LocalModel("base.en",         "Base (English)",       145,  False, "Recommended for English speakers."),  # noqa: E501
+    LocalModel("small",           "Small",                466,  True,  "Noticeably more accurate, still real-time on most Macs."),  # noqa: E501
+    LocalModel("small.en",        "Small (English)",      466,  False, "Small's accuracy boost, English-only."),  # noqa: E501
+    LocalModel("medium",          "Medium",               1500, True,  "Strong accuracy. Slower start; needs ~3 GB RAM headroom."),  # noqa: E501
+    LocalModel("medium.en",       "Medium (English)",     1500, False, "Medium's accuracy, English-only."),  # noqa: E501
+    LocalModel("large-v3",        "Large v3",             3000, True,  "Best accuracy. Slow on CPU — best paired with a GPU/Neural Engine."),  # noqa: E501
+    LocalModel("distil-large-v3", "Distil Large v3 (EN)", 1500, False, "Near-Large accuracy at half the size; English-only."),  # noqa: E501
 )
 
 # Phase 1 ships with one wired-up cloud provider (OpenAI). Phase 2 fills
