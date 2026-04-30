@@ -476,19 +476,44 @@ class MainWindow(QMainWindow):
 class _DragHeader(QWidget):
     """Brand-header widget that drags the parent window when clicked.
 
-    With the macOS title bar hidden, the user has no built-in surface
-    to grab the window from. ``QWindow.startSystemMove`` is the
-    cross-platform Qt API for ``"behave like a title bar"`` — it hands
-    the drag off to the window manager so we get native-feeling
-    movement (snap, full-screen edge resistance, etc.) without us
-    poking NSWindow ourselves.
+    With the macOS title bar hidden the user has no built-in surface
+    to grab. We tried ``QWindow.startSystemMove()`` first — the docs
+    suggest it but on the cocoa platform plugin it returns ``False``
+    on press (the AppKit handoff doesn't fire), so the window stayed
+    put. Manual drag tracking is unglamorous but works on every
+    platform: record the press offset relative to the top-level
+    window's frame, then ``move()`` the window on each motion event.
     """
+
+    _drag_offset = None  # set on press, cleared on release
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt API)
         if event.button() == Qt.MouseButton.LeftButton:
             window = self.window()
-            handle = window.windowHandle() if window is not None else None
-            if handle is not None and handle.startSystemMove():
+            if window is not None:
+                self._drag_offset = (
+                    event.globalPosition().toPoint()
+                    - window.frameGeometry().topLeft()
+                )
                 event.accept()
                 return
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        if (
+            self._drag_offset is not None
+            and event.buttons() & Qt.MouseButton.LeftButton
+        ):
+            window = self.window()
+            if window is not None:
+                window.move(
+                    event.globalPosition().toPoint() - self._drag_offset,
+                )
+                event.accept()
+                return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_offset = None
+        super().mouseReleaseEvent(event)
