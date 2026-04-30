@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -87,7 +88,12 @@ class HomePage(QWidget):
     # choice survives a relaunch.
     theme_toggle_requested = Signal(bool)
 
-    MAX_TRANSCRIPTS = 5
+    # Bumped from 5 to 200 so the panel works as a session-scoped chat
+    # log instead of a "last few" peek list. The cap exists to keep
+    # memory bounded after a marathon session — at 200 rows the QWidget
+    # tree is still cheap. Persistence across launches is a separate
+    # follow-up (#TBD).
+    MAX_TRANSCRIPTS = 200
 
     def __init__(self, cfg: config_mod.Config, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -137,19 +143,15 @@ class HomePage(QWidget):
         return status_card
 
     def _build_transcripts_card(self) -> QWidget:
-        """Recent transcripts as a card.
+        """Recent transcripts as a scrollable conversation panel.
 
-        We had a ``QStackedWidget`` here before to swap between an
-        empty-state placeholder and a rows container. In the bundled
-        .app the rows view never appeared — the rows container had
-        nothing but a trailing stretch at first paint, so the stack's
-        size hint collapsed when we flipped to it and the freshly
-        added row was rendered into a zero-height region.
-
-        Simpler shape: one container with the empty-state widget AND
-        the rows. ``add_transcript`` hides the empty state on first
-        arrival and inserts each new row above the previous newest.
-        No stack, no size-hint games.
+        Earlier passes squeezed the list into a fixed-height area with
+        a tiny cap (5 rows) — fine as a peek but useless once you've
+        had a real session. The card now wraps the rows in a
+        ``QScrollArea`` with a generous visible height; the cap is
+        ``MAX_TRANSCRIPTS`` (currently 200, session-scoped). Newest
+        rows are inserted at the top so the most recent transcript is
+        always in view without scrolling.
         """
         transcripts_card = card()
         layout = QVBoxLayout(transcripts_card)
@@ -168,8 +170,8 @@ class HomePage(QWidget):
         headline.setStyleSheet("font-size: 14px; font-weight: 600;")
         empty_layout.addWidget(headline)
         sub = QLabel(
-            "Hold your hotkey and speak. Your last 5 transcripts will "
-            "show up here for quick re-copying."
+            "Hold your hotkey and speak. Your transcripts will show up "
+            "here — scroll to walk back through the session."
         )
         sub.setProperty("dim", True)
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -178,18 +180,33 @@ class HomePage(QWidget):
         empty_layout.addStretch(1)
         self._empty_state = empty
 
-        # Single container holds the empty-state and the row stack.
-        # Rows are inserted above the empty-state; the stretch at the
-        # bottom keeps everything top-aligned.
-        self._rows_layout = QVBoxLayout()
+        # Inner widget for the scroll area. Holds the empty-state
+        # widget and the rows; new rows are inserted above the empty
+        # state, the trailing stretch keeps things top-aligned when
+        # the content is shorter than the viewport.
+        rows_host = QWidget()
+        rows_host.setObjectName("transcriptsHost")
+        self._rows_layout = QVBoxLayout(rows_host)
         self._rows_layout.setContentsMargins(0, 0, 0, 0)
         self._rows_layout.setSpacing(6)
         self._rows_layout.addWidget(self._empty_state)
         self._rows_layout.addStretch(1)
-        # Tracks the visible row widgets newest-first so trimming and
-        # tests can introspect the order without walking the layout.
         self._rows: list[_TranscriptRow] = []
-        layout.addLayout(self._rows_layout)
+
+        scroll = QScrollArea()
+        scroll.setObjectName("transcriptsScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        # Visible window into the conversation: tall enough to feel
+        # like a chat panel, capped so it doesn't push the
+        # Preferences card off-screen on smaller windows.
+        scroll.setMinimumHeight(220)
+        scroll.setMaximumHeight(360)
+        scroll.setWidget(rows_host)
+        self._transcripts_scroll = scroll
+        layout.addWidget(scroll)
         return transcripts_card
 
     def _build_preferences_card(self) -> QWidget:
@@ -310,9 +327,7 @@ class HomePage(QWidget):
         timestamp = (when or datetime.now()).strftime("%H:%M")
         row = _TranscriptRow(text=text, timestamp=timestamp)
         row.clicked.connect(lambda t=text: pyperclip.copy(t))
-        # Hide the empty state once a real transcript arrives. Cheaper
-        # than reshuffling layouts and doesn't depend on the stack's
-        # size hint changing.
+        # Hide the empty state once a real transcript arrives.
         self._empty_state.hide()
         # Insert at index 0 so newest is on top; the empty-state widget
         # and trailing stretch shift down by one slot per prepended row.
@@ -322,6 +337,13 @@ class HomePage(QWidget):
             old = self._rows.pop()
             self._rows_layout.removeWidget(old)
             old.deleteLater()
+        # Keep the newest row in view. The user explicitly asked to be
+        # able to scroll *back* through history, so we don't fight them
+        # if they've already scrolled away — only auto-scroll-to-top
+        # when the viewport is already at (or near) the top.
+        bar = self._transcripts_scroll.verticalScrollBar()
+        if bar.value() <= 8:
+            bar.setValue(0)
 
     def apply_to_config(self, cfg: config_mod.Config) -> config_mod.Config:
         """Return a copy of cfg with this page's preferences applied."""

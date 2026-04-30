@@ -81,13 +81,16 @@ def test_state_pushes_into_home(qapp):
 
 
 def test_appended_transcripts_keep_only_last_n(qapp):
+    """The panel is now session-scoped chat history (MAX_TRANSCRIPTS=200),
+    not the previous "last 5 peek". Trimming still happens at the cap —
+    overshoot the cap and confirm we never grow past it."""
     win = MainWindow(_make_cfg(), save_config=lambda _c: None)
-    for i in range(7):
+    cap = win.home_page.MAX_TRANSCRIPTS
+    for i in range(cap + 5):
         win.append_transcript(f"line {i}")
-    # MAX_TRANSCRIPTS = 5 in HomePage.
-    assert len(win.home_page._rows) == 5
+    assert len(win.home_page._rows) == cap
     # Newest is on top.
-    assert win.home_page._rows[0].text == "line 6"
+    assert win.home_page._rows[0].text == f"line {cap + 4}"
 
 
 def test_toggling_auto_paste_persists_and_emits(qapp):
