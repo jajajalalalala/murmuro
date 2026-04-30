@@ -56,19 +56,20 @@ def test_window_constructs_with_four_pages(qapp):
 def test_transcript_entry_includes_timestamp(qapp):
     """Each Home transcript row carries an HH:MM timestamp + the raw text.
 
-    Post-redesign, the user-visible row is a custom widget rather than
-    the QListWidgetItem's painted text — so we assert against the data
-    roles (UserRole = raw text, UserRole+1 = timestamp) instead of
-    ``item.text()`` (which is empty by design now).
+    Transcripts now render as plain ``QWidget`` rows in a vertical
+    layout (the previous QListWidget+setItemWidget rendering broke in
+    bundled .app builds because the item size hint had width 0). Each
+    row exposes ``text`` and ``timestamp`` attributes so this assertion
+    can introspect without knowing the layout shape.
     """
     from datetime import datetime
     win = MainWindow(_make_cfg(), save_config=lambda _c: None)
     when = datetime(2026, 4, 26, 14, 32, 5)
     win.append_transcript("hello world")  # uses now()
     win.home_page.add_transcript("test entry", when=when)
-    item = win.home_page._list.item(0)  # newest first
-    assert item.data(0x0100) == "test entry"      # Qt.UserRole
-    assert item.data(0x0100 + 1) == "14:32"       # UserRole + 1 = timestamp
+    row = win.home_page._rows[0]  # newest first
+    assert row.text == "test entry"
+    assert row.timestamp == "14:32"
 
 
 def test_state_pushes_into_home(qapp):
@@ -84,9 +85,9 @@ def test_appended_transcripts_keep_only_last_n(qapp):
     for i in range(7):
         win.append_transcript(f"line {i}")
     # MAX_TRANSCRIPTS = 5 in HomePage.
-    assert win.home_page._list.count() == 5
-    # Newest is on top — raw text lives in UserRole now (post-redesign).
-    assert win.home_page._list.item(0).data(0x0100) == "line 6"
+    assert len(win.home_page._rows) == 5
+    # Newest is on top.
+    assert win.home_page._rows[0].text == "line 6"
 
 
 def test_toggling_auto_paste_persists_and_emits(qapp):

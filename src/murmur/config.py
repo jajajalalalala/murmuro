@@ -80,6 +80,10 @@ class Config:
     # the user gets immediate, eyes-free confirmation that the hotkey
     # registered — independent of the on-screen HUD.
     play_beeps: bool = True
+    # UI theme. Off (default) = light mode; on = dark mode. Persisted so
+    # the user's choice survives a relaunch instead of falling back to
+    # auto-detect each time.
+    dark_mode: bool = False
     local: LocalBackendConfig = field(default_factory=LocalBackendConfig)
     openai: OpenAIBackendConfig = field(default_factory=OpenAIBackendConfig)
     # User-added cloud providers (curated entries live in
@@ -115,6 +119,7 @@ def load() -> Config:
         auto_paste=data.get("auto_paste", True),
         show_hud=data.get("show_hud", True),
         play_beeps=data.get("play_beeps", True),
+        dark_mode=data.get("dark_mode", False),
         local=LocalBackendConfig(**data.get("local", {})),
         openai=OpenAIBackendConfig(**data.get("openai", {})),
         custom_cloud=[

@@ -105,9 +105,10 @@ class MainWindow(QMainWindow):
         # window, which doesn't exist until showEvent).
         self._titlebar_styled = False
 
-        # Theme state. We default to LIGHT (per user request) but remember
-        # the active palette so the toggle button can flip it.
-        self._active_palette = LIGHT
+        # Theme state mirrors what the persisted Config says. The
+        # caller (tray.py) has already applied the matching palette
+        # globally before constructing the window.
+        self._active_palette = DARK if cfg.dark_mode else LIGHT
 
         central = QWidget(self)
         self.setCentralWidget(central)
@@ -177,23 +178,20 @@ class MainWindow(QMainWindow):
     # ----- Construction helpers -------------------------------------------
 
     def _build_brand_header(self) -> QWidget:
-        """Top-of-rail brand bar: μ silhouette + 'Murmur' wordmark.
+        """Top-of-rail brand bar + drag handle for the frameless window.
 
-        The orange-square app icon lives in Finder / the Dock; for the
-        in-app rail we use a quieter monochrome μ silhouette that
-        adapts to the active theme (dark glyph on light surfaces, light
-        glyph on dark). The orange square next to the wordmark felt
-        louder than the rest of the chrome.
+        The brand header doubles as the window's drag handle: with the
+        macOS title bar hidden, ``setMovableByWindowBackground`` alone
+        doesn't help because every pixel of the central widget is
+        covered by an opaque subview. ``_DragHeader`` overrides the
+        mouse press / move handlers and calls ``startSystemMove`` on
+        the window handle, which is the supported Qt path for
+        frameless-window dragging on every platform.
 
-        With the macOS title bar hidden, the traffic-light buttons
-        (close / minimize / maximize) overlay the top-left of the
-        window — roughly 70 px wide × 28 px tall. The brand header
-        reserves 28 px of top padding so its content sits below the
-        traffic-light strip and doesn't get covered.
-
-        Falls back gracefully when the wordmark asset is missing.
+        The 28-px top padding reserves space for the macOS traffic
+        lights so they don't overlap the icon and wordmark.
         """
-        header = QWidget()
+        header = _DragHeader(self)
         header.setObjectName("brandHeader")
         header.setFixedHeight(64)
         layout = QHBoxLayout(header)
@@ -202,11 +200,20 @@ class MainWindow(QMainWindow):
 
         self._brand_glyph = QLabel()
         self._brand_glyph.setFixedSize(24, 24)
+        # The icon and wordmark inside the drag header should not eat
+        # mouse events — clicks anywhere on the strip should start a
+        # window move.
+        self._brand_glyph.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True,
+        )
         self._refresh_brand_glyph()
         layout.addWidget(self._brand_glyph)
 
         wordmark = QLabel("Murmur")
         wordmark.setObjectName("brandText")
+        wordmark.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True,
+        )
         layout.addWidget(wordmark)
         layout.addStretch(1)
         return header
@@ -357,12 +364,13 @@ class MainWindow(QMainWindow):
             window.setStyleMask_(
                 window.styleMask() | NSWindowStyleMaskFullSizeContentView,
             )
-            # Without an explicit title bar, the user has to be able to
-            # drag the window from somewhere — empty rail areas, the
-            # brand header, etc. ``setMovableByWindowBackground:`` lets
-            # the user click-and-drag any non-interactive surface to
-            # move the window.
-            window.setMovableByWindowBackground_(True)
+            # Window dragging is handled in Qt-land via _DragHeader on
+            # the brand bar (startSystemMove). Setting
+            # ``setMovableByWindowBackground:true`` here would conflict
+            # with that — clicks on the rail's empty area would start a
+            # native drag *and* a Qt drag simultaneously and AppKit
+            # would win the race, leaving the user unable to use the
+            # rail's clickable rows reliably.
         except Exception as e:  # noqa: BLE001
             _log.warning("could not configure macOS title bar: %s", e)
 
@@ -463,3 +471,24 @@ class MainWindow(QMainWindow):
         # The app lives in the tray; closing the window just hides it.
         event.ignore()
         self.hide()
+
+
+class _DragHeader(QWidget):
+    """Brand-header widget that drags the parent window when clicked.
+
+    With the macOS title bar hidden, the user has no built-in surface
+    to grab the window from. ``QWindow.startSystemMove`` is the
+    cross-platform Qt API for ``"behave like a title bar"`` — it hands
+    the drag off to the window manager so we get native-feeling
+    movement (snap, full-screen edge resistance, etc.) without us
+    poking NSWindow ourselves.
+    """
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        if event.button() == Qt.MouseButton.LeftButton:
+            window = self.window()
+            handle = window.windowHandle() if window is not None else None
+            if handle is not None and handle.startSystemMove():
+                event.accept()
+                return
+        super().mousePressEvent(event)

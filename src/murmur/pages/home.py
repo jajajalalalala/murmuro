@@ -11,14 +11,10 @@ from datetime import datetime
 
 import pyperclip
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import (
-    QApplication,
     QComboBox,
     QHBoxLayout,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -84,11 +80,12 @@ class HomePage(QWidget):
     # main window persists the change.
     preferences_changed = Signal()
 
-    # Emitted when the user toggles the Dark-mode checkbox. The bool is
+    # Emitted when the user toggles the Dark-mode switch. The bool is
     # the *requested* state (True → switch to dark). Lives on the home
     # page rather than the rail because the user feedback was that a
     # rail-level toggle felt strange — preferences belong with other
-    # preferences. Session-scoped (not persisted to Config yet).
+    # preferences. Persisted to Config via ``apply_to_config`` so the
+    # choice survives a relaunch.
     theme_toggle_requested = Signal(bool)
 
     MAX_TRANSCRIPTS = 5
@@ -142,33 +139,35 @@ class HomePage(QWidget):
 
     def _build_transcripts_card(self) -> QWidget:
         """Recent transcripts as a card. When empty, a friendly
-        placeholder replaces the bare-rectangle empty state. Each
-        transcript renders as a custom row widget (text + timestamp
-        caption) so the page no longer reads like a terminal log."""
+        placeholder replaces the bare-rectangle empty state.
+
+        Earlier versions used ``QListWidget`` + ``setItemWidget`` to
+        host custom rows. That combination silently rendered nothing in
+        the bundled .app — the item's size hint reported width 0 and
+        the embedded widget never got geometry. Switching to a plain
+        ``QVBoxLayout`` of clickable row widgets sidesteps the whole
+        item-view sizing dance: each row is a real widget, sized by
+        the surrounding layout, and click-to-copy lives directly on the
+        row. Tests that used ``_list.count()`` / ``_list.item(0)`` now
+        target ``_rows`` instead.
+        """
         transcripts_card = card()
         layout = QVBoxLayout(transcripts_card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
         layout.addWidget(card_title("Recent transcripts"))
 
-        self._list = QListWidget()
-        self._list.setObjectName("transcripts")
-        self._list.setFrameShape(QListWidget.Shape.NoFrame)
-        self._list.setVerticalScrollMode(
-            QListWidget.ScrollMode.ScrollPerPixel,
-        )
-        self._list.setSelectionMode(
-            QListWidget.SelectionMode.SingleSelection,
-        )
-        self._list.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
-        )
-        self._list.setMinimumHeight(160)
-        self._list.setMaximumHeight(280)
-        self._list.itemActivated.connect(self._on_transcript_activated)
+        rows_container = QWidget()
+        self._rows_layout = QVBoxLayout(rows_container)
+        self._rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._rows_layout.setSpacing(6)
+        self._rows_layout.addStretch(1)
+        # Tracks the visible row widgets newest-first so trimming and
+        # tests can introspect the order without walking the layout.
+        self._rows: list[_TranscriptRow] = []
 
         # Empty-state placeholder. Swapped in via a QStackedWidget when
-        # the list has zero rows; pages flip back to the list as soon
+        # the list has zero rows; pages flip to the rows view as soon
         # as the first transcript arrives.
         empty = QWidget()
         empty_layout = QVBoxLayout(empty)
@@ -191,7 +190,7 @@ class HomePage(QWidget):
 
         self._transcripts_stack = QStackedWidget()
         self._transcripts_stack.addWidget(self._empty_state)
-        self._transcripts_stack.addWidget(self._list)
+        self._transcripts_stack.addWidget(rows_container)
         self._transcripts_stack.setCurrentWidget(self._empty_state)
         layout.addWidget(self._transcripts_stack)
         return transcripts_card
@@ -237,15 +236,20 @@ class HomePage(QWidget):
         )
         layout.addWidget(beeps_row)
 
-        # Dark mode — session-scoped so it doesn't ride preferences_changed
-        # (no Config field for theme yet). Initial state mirrors the
-        # currently-active palette so the switch reflects reality on
-        # first paint.
+        # Dark mode — initial state comes from the persisted Config so
+        # the switch reflects whatever the user picked last session
+        # (defaulting to off / light mode on a fresh install). Toggling
+        # both requests an immediate theme swap *and* rides
+        # preferences_changed so the new value lands on disk.
+        def _on_dark_toggled(checked: bool) -> None:
+            self.theme_toggle_requested.emit(checked)
+            self.preferences_changed.emit()
+
         dark_row, self.dark_mode = preference_row(
             "Dark mode",
             caption="Use the dark palette across the app.",
-            initial=self._is_palette_dark(),
-            on_toggled=lambda checked: self.theme_toggle_requested.emit(checked),
+            initial=self._cfg.dark_mode,
+            on_toggled=_on_dark_toggled,
         )
         layout.addWidget(dark_row)
 
@@ -270,17 +274,6 @@ class HomePage(QWidget):
         layout.addWidget(self.language_combo)
         return prefs_card
 
-    @staticmethod
-    def _is_palette_dark() -> bool:
-        """Inspect the active QApplication palette to decide whether the
-        Dark-mode switch should start in the on position. Dark surfaces
-        have a window-color lightness below ~128 (out of 255)."""
-        app = QApplication.instance()
-        if app is None:
-            return False
-        color = app.palette().color(QPalette.ColorRole.Window)
-        return color.lightness() < 128
-
     # ------------------------------------------------------------------
     # Public hooks driven by the main window
     # ------------------------------------------------------------------
@@ -295,12 +288,16 @@ class HomePage(QWidget):
     def set_config(self, cfg: config_mod.Config) -> None:
         """Sync the displayed preferences with a fresh Config."""
         self._cfg = cfg
-        widgets = (self.auto_paste, self.show_hud, self.play_beeps, self.language_combo)
+        widgets = (
+            self.auto_paste, self.show_hud, self.play_beeps,
+            self.dark_mode, self.language_combo,
+        )
         for w in widgets:
             w.blockSignals(True)
         self.auto_paste.setChecked(cfg.auto_paste)
         self.show_hud.setChecked(cfg.show_hud)
         self.play_beeps.setChecked(cfg.play_beeps)
+        self.dark_mode.setChecked(cfg.dark_mode)
         idx = next(
             (i for i, (code, _) in enumerate(LANGUAGES) if code == cfg.language),
             0,
@@ -314,40 +311,32 @@ class HomePage(QWidget):
         if not text:
             return
         timestamp = (when or datetime.now()).strftime("%H:%M")
-        item = QListWidgetItem()
-        # No item text — the custom row widget below is what the user
-        # sees, and Qt would otherwise double-paint the item's default
-        # text behind the widget. We stash the timestamp + raw text in
-        # item-data roles so tests / future delegates can introspect.
-        item.setData(Qt.ItemDataRole.UserRole, text)
-        item.setData(Qt.ItemDataRole.UserRole + 1, timestamp)
-        item.setSizeHint(_TranscriptRow.sizeHintFor(text))
-        self._list.insertItem(0, item)
-        self._list.setItemWidget(
-            self._list.item(0),
-            _TranscriptRow(text=text, timestamp=timestamp),
-        )
-        while self._list.count() > self.MAX_TRANSCRIPTS:
-            self._list.takeItem(self._list.count() - 1)
+        row = _TranscriptRow(text=text, timestamp=timestamp)
+        row.clicked.connect(lambda t=text: pyperclip.copy(t))
+        # Insert at index 0 so newest is on top; the trailing stretch is
+        # always at index ``len(self._rows) + 0`` after we insert (the
+        # stretch shifts down by one for each prepended row).
+        self._rows_layout.insertWidget(0, row)
+        self._rows.insert(0, row)
+        while len(self._rows) > self.MAX_TRANSCRIPTS:
+            old = self._rows.pop()
+            self._rows_layout.removeWidget(old)
+            old.deleteLater()
 
-        # First transcript switches the stack to the list view.
+        # First transcript switches the stack to the rows view.
         if self._transcripts_stack.currentWidget() is self._empty_state:
-            self._transcripts_stack.setCurrentWidget(self._list)
+            self._transcripts_stack.setCurrentIndex(1)
 
     def apply_to_config(self, cfg: config_mod.Config) -> config_mod.Config:
         """Return a copy of cfg with this page's preferences applied."""
         cfg.auto_paste = self.auto_paste.isChecked()
         cfg.show_hud = self.show_hud.isChecked()
         cfg.play_beeps = self.play_beeps.isChecked()
+        cfg.dark_mode = self.dark_mode.isChecked()
         cfg.language = self.language_combo.currentData() or "auto"
         return cfg
 
     # ------------------------------------------------------------------
-
-    def _on_transcript_activated(self, item: QListWidgetItem) -> None:
-        full_text = item.data(Qt.ItemDataRole.UserRole)
-        if full_text:
-            pyperclip.copy(full_text)
 
     def _refresh_summary(self) -> None:
         """Render the dim sub-line under the Status hero in plain English.
@@ -388,15 +377,15 @@ class HomePage(QWidget):
 
 
 class _TranscriptRow(QWidget):
-    """Custom row widget for a single transcript.
+    """Clickable row widget for a single transcript.
 
     Body text is the primary content and wraps freely; the timestamp
-    sits on the right as a small dim caption. Replaces the previous
-    ``"14:32\\ntext"`` two-line list-item rendering that the user
-    flagged as looking like terminal output.
+    sits on the right as a small dim caption. Clicking anywhere on
+    the row emits :attr:`clicked` so the page can copy the text back
+    to the clipboard.
     """
 
-    _PADDING = (8, 6, 8, 6)
+    clicked = Signal()
 
     def __init__(
         self,
@@ -406,8 +395,14 @@ class _TranscriptRow(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self.setObjectName("transcriptRow")
+        self.setProperty("clickable", True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.text = text
+        self.timestamp = timestamp
+
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(*self._PADDING)
+        layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(12)
 
         body = QLabel(text)
@@ -415,6 +410,10 @@ class _TranscriptRow(QWidget):
         body.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
         )
+        # The label shouldn't intercept clicks — let them bubble to the
+        # row's mousePressEvent so click-to-copy works anywhere on the
+        # row, including over the text itself.
+        body.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         layout.addWidget(body, 1)
 
         ts = QLabel(timestamp)
@@ -423,22 +422,10 @@ class _TranscriptRow(QWidget):
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
         )
         ts.setMinimumWidth(40)
+        ts.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         layout.addWidget(ts, 0)
 
-    @classmethod
-    def sizeHintFor(cls, text: str) -> _QSize:  # noqa: N802 — Qt camelCase
-        """Heuristic height so the parent QListWidget allocates enough
-        room without needing a delegate. Long transcripts wrap and we
-        bump the row height accordingly."""
-        from PySide6.QtCore import QSize
-        # ~50 chars per line at our default body font size; hand-tuned.
-        chars_per_line = 56
-        lines = max(1, (len(text) + chars_per_line - 1) // chars_per_line)
-        line_h = 20
-        pad_v = cls._PADDING[1] + cls._PADDING[3]
-        return QSize(0, lines * line_h + pad_v)
-
-
-# Forward reference for the type annotation above so the module imports
-# cleanly when Qt isn't installed (e.g. lint passes).
-_QSize = "QSize"
+    def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
