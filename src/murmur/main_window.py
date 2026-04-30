@@ -30,8 +30,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -148,17 +146,29 @@ class MainWindow(QMainWindow):
 
         rail_layout.addWidget(self._build_brand_header())
 
-        # Top nav — Home, Shortcuts, Models. About lives at the bottom of
-        # the rail (per user feedback) so it's a quick eye-jump and
-        # doesn't compete with the primary destinations.
-        self._nav_top = QListWidget()
-        self._nav_top.setObjectName("nav")
-        for label in ("Home", "Shortcuts", "Models"):
-            self._nav_top.addItem(QListWidgetItem(label))
-        rail_layout.addWidget(self._nav_top, 1)
+        # Top nav — Home, Shortcuts, Models. Built as plain QPushButtons
+        # rather than a QListWidget so the entire rail is one continuous
+        # surface: QListWidget's viewport paints itself with the
+        # QPalette ``Base`` color (slightly lighter than ``rail_bg``)
+        # which the user kept seeing as a separate inner panel sitting
+        # on the rail. Same fix as the About row in #64.
+        self._nav_buttons: list[QPushButton] = []
+        nav_host = QWidget()
+        nav_layout = QVBoxLayout(nav_host)
+        nav_layout.setContentsMargins(8, 8, 8, 0)
+        nav_layout.setSpacing(0)
+        for idx, label in enumerate(("Home", "Shortcuts", "Models")):
+            btn = QPushButton(label)
+            btn.setProperty("navItem", True)
+            btn.setCheckable(True)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _checked=False, i=idx: self._select_nav(i))
+            nav_layout.addWidget(btn)
+            self._nav_buttons.append(btn)
+        nav_layout.addStretch(1)
+        rail_layout.addWidget(nav_host, 1)
 
-        # Bottom row: About + theme toggle, separated by a thin divider
-        # so the bottom area reads as its own section visually.
+        # Bottom row: standalone About button (same nav-item styling).
         rail_layout.addWidget(self._build_bottom_rail_section())
 
         root.addWidget(rail)
@@ -179,11 +189,11 @@ class MainWindow(QMainWindow):
             self._stack.addWidget(scroll_wrap(page))
         root.addWidget(self._stack, 1)
 
-        # Wire nav: top list selects pages 0/1/2; the bottom About button
-        # selects page 3 and clears the top list's selection so we never
-        # show two highlights at once.
-        self._nav_top.currentRowChanged.connect(self._on_top_nav_changed)
-        self._nav_top.setCurrentRow(0)
+        # Default selection: Home (page 0). The button group's checked
+        # state and the stack's current index are kept in sync by
+        # ``_select_nav`` for the top buttons and ``_on_about_clicked``
+        # for About.
+        self._select_nav(0)
 
         # Persist + notify on any page edit. The save+reload cost is tiny
         # compared to a full transcription cycle, so we don't debounce.
@@ -298,25 +308,27 @@ class MainWindow(QMainWindow):
 
     # ----- Navigation coordination ----------------------------------------
 
-    def _on_top_nav_changed(self, row: int) -> None:
-        """Top-nav row changed — switch the stack and clear the About
-        button's checked state so we never highlight two destinations
-        at once."""
-        if row < 0:
-            return
-        self._stack.setCurrentIndex(row)
+    def _select_nav(self, idx: int) -> None:
+        """Select one of the top nav buttons (Home/Shortcuts/Models).
+
+        Flips the stack to the matching page, makes the chosen button
+        the only checked top button, and unchecks About so we never
+        highlight two destinations at once.
+        """
+        self._stack.setCurrentIndex(idx)
+        for i, btn in enumerate(self._nav_buttons):
+            btn.setChecked(i == idx)
         if self._about_button.isChecked():
             self._about_button.setChecked(False)
 
     def _on_about_clicked(self) -> None:
         """About button clicked — switch to the About page (index 3)
-        and clear the top-nav highlight. The button stays checked
+        and clear the top nav's highlight. The button stays checked
         until another nav destination is picked."""
         self._stack.setCurrentIndex(3)
         self._about_button.setChecked(True)
-        self._nav_top.blockSignals(True)
-        self._nav_top.setCurrentRow(-1)
-        self._nav_top.blockSignals(False)
+        for btn in self._nav_buttons:
+            btn.setChecked(False)
 
     # ----- Theme handling -------------------------------------------------
 
