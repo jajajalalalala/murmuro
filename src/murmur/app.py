@@ -160,20 +160,20 @@ class MurmurApp:
             self._hotkey = None
 
     def reload_config(self, cfg: config_mod.Config) -> None:
-        """Apply a new Config selectively.
+        """Apply a new Config in-process.
 
         Pure-toggle changes (auto_paste, show_hud, play_beeps, language)
-        are read at use-time, so they need no rebuild — assigning ``self.cfg``
-        is enough. We only:
+        are read at use-time, so they need no rebuild — assigning
+        ``self.cfg`` is enough. We only:
           - drop the cached transcriber when backend / cloud_provider_id /
             model actually changed (it lazy-rebuilds on next press);
-          - stop and restart the pynput listener when the hotkey spec
-            changed.
+          - rebind the existing pynput listener via
+            :meth:`PushToTalkHotkey.replace_spec` when the hotkey changed.
 
-        Skipping the listener stop/start on every save eliminates the
-        known pynput macOS instability window — see #43 and the
-        ``restart.py`` docstring. The larger v1.1+ hot-reload story is
-        tracked in #38.
+        ``replace_spec`` swaps the target key set in place rather than
+        tearing down the listener — PR #47 tried the stop+start dance and
+        the old listener kept firing in production. The in-place rebind
+        avoids that failure mode (#38).
         """
         old_cfg = self.cfg
         self.cfg = cfg
@@ -194,9 +194,7 @@ class MurmurApp:
             self._transcriber = None
 
         if hotkey_changed and self._hotkey is not None:
-            self._hotkey.stop()
-            self._hotkey = None
-            self.start()
+            self._hotkey.replace_spec(cfg.hotkey)
 
 
 def _transcriber_inputs_changed(
@@ -204,12 +202,9 @@ def _transcriber_inputs_changed(
 ) -> bool:
     """Return True iff a Config diff implies the cached transcriber is stale.
 
-    Internal control-flow helper — kept distinct from
-    ``restart.restart_reasons`` (which produces user-facing strings) so
-    the two are free to diverge. Mirrors that function's structure: a
-    backend or cloud_provider_id flip invalidates regardless of which
-    model field is set, otherwise we compare the model field that
-    matches the current backend.
+    A backend or cloud_provider_id flip invalidates regardless of which
+    model field is set; otherwise we compare the model field that matches
+    the current backend.
     """
     if old.backend != new.backend:
         return True

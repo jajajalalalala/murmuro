@@ -58,6 +58,11 @@ class PushToTalkHotkey:
         self._fn_monitor: FnMonitor | None = None
         self._held_keys: set = set()
         self._is_active = False  # True while the chord is fully held
+        # Guards in-place rebinds (replace_spec) against concurrent reads
+        # from the listener thread. The listener fires _on_key_press /
+        # _on_key_release on its own thread, so a naive swap of
+        # _target_keys could race with a comparison mid-event.
+        self._lock = threading.Lock()
 
     # Friendly names → pynput Key attribute names. pynput uses `alt_r`, `cmd_l`,
     # etc., but humans (and the README) say "right_alt" / "right_option".
@@ -123,30 +128,46 @@ class PushToTalkHotkey:
     def _on_key_press(self, key) -> None:
         try:
             _log.debug("press  %s", self._key_repr(key))
-            if key in self._target_keys:
+            with self._lock:
+                if key not in self._target_keys:
+                    return
                 self._held_keys.add(key)
-                if not self._is_active and self._held_keys >= self._target_keys:
+                activated = (
+                    not self._is_active
+                    and self._held_keys >= self._target_keys
+                )
+                if activated:
                     self._is_active = True
-                    _log.info("hotkey ACTIVATED (%s)", self._key_spec)
-                    try:
-                        self._on_press()
-                    except Exception:
-                        _log.exception("on_press callback raised")
+                    spec = self._key_spec
+            if activated:
+                _log.info("hotkey ACTIVATED (%s)", spec)
+                try:
+                    self._on_press()
+                except Exception:
+                    _log.exception("on_press callback raised")
         except Exception:
             _log.exception("error in _on_key_press")
 
     def _on_key_release(self, key) -> None:
         try:
             _log.debug("release %s", self._key_repr(key))
-            if key in self._target_keys:
+            with self._lock:
+                if key not in self._target_keys:
+                    return
                 self._held_keys.discard(key)
-                if self._is_active and not (self._held_keys >= self._target_keys):
+                released = (
+                    self._is_active
+                    and not (self._held_keys >= self._target_keys)
+                )
+                if released:
                     self._is_active = False
-                    _log.info("hotkey RELEASED (%s)", self._key_spec)
-                    try:
-                        self._on_release()
-                    except Exception:
-                        _log.exception("on_release callback raised")
+                    spec = self._key_spec
+            if released:
+                _log.info("hotkey RELEASED (%s)", spec)
+                try:
+                    self._on_release()
+                except Exception:
+                    _log.exception("on_release callback raised")
         except Exception:
             _log.exception("error in _on_key_release")
 
@@ -210,3 +231,44 @@ class PushToTalkHotkey:
         if self._fn_monitor is not None:
             self._fn_monitor.stop()
             self._fn_monitor = None
+
+    def replace_spec(self, new_spec: str) -> None:
+        """Rebind to a new key spec without tearing down the listener.
+
+        pynput's :class:`Listener` fires press/release for *every* key; we
+        filter against ``_target_keys``. Swapping the target set is therefore
+        enough to rebind — no event-tap teardown, no race window where the
+        old and new listeners briefly fight for events. (PR #47 tried the
+        stop+start dance and the old listener kept firing in production;
+        this avoids the failure mode entirely.)
+
+        ``FnMonitor`` is the one piece that needs lifecycle management: it
+        attaches a separate NSEvent monitor for the macOS Fn key, which
+        pynput can't see. Start it if ``<fn>`` is newly needed; stop it if
+        no longer.
+        """
+        new_keys = self._parse_keys(new_spec)
+        with self._lock:
+            self._key_spec = new_spec
+            self._target_keys = new_keys
+            # Drop any stale held-key state from the old chord. If the user
+            # was holding the previous hotkey when they hit Save, the
+            # release event for it would no longer match the new target
+            # set, so _held_keys would never converge back to empty.
+            self._held_keys = set()
+            self._is_active = False
+
+        needs_fn = FN_KEY in new_keys
+        has_fn = self._fn_monitor is not None
+        if needs_fn and not has_fn:
+            self._fn_monitor = FnMonitor(
+                on_press=lambda: self._on_key_press(FN_KEY),
+                on_release=lambda: self._on_key_release(FN_KEY),
+            )
+            if not self._fn_monitor.start():
+                _log.warning("Fn monitor not armed; <fn> hotkey will not fire")
+        elif has_fn and not needs_fn:
+            self._fn_monitor.stop()
+            self._fn_monitor = None
+        target_names = sorted(self._key_repr(k) for k in new_keys)
+        _log.info("rebound hotkey in place: %s -> %s", new_spec, target_names)
