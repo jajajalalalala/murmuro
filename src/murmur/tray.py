@@ -196,6 +196,13 @@ def run_tray(cfg: config_mod.Config) -> int:
         from .onboarding import OnboardingWizard
 
         wizard = OnboardingWizard(cfg)
+        # Force-front: with LSUIElement=true (no Dock icon) the wizard
+        # comes up but doesn't auto-foreground. show() + raise_() +
+        # activateWindow() hops it onto the user's screen. exec() then
+        # blocks normally.
+        wizard.show()
+        wizard.raise_()
+        wizard.activateWindow()
         wizard.exec()
         result = wizard.result()
         cfg = result.cfg  # picks up model / hotkey / onboarded
