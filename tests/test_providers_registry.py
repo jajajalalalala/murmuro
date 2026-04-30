@@ -88,14 +88,14 @@ def test_list_local_returns_curated_baseline(isolated_cfg):
 
 def test_list_cloud_returns_curated_baseline_on_fresh_config(isolated_cfg):
     """The curated list ships OpenAI plus the OpenAI-compatible
-    free/cheap alternatives (Groq, DeepSeek). Test asserts only the
-    *id set* + that OpenAI's expected fields haven't drifted; new
-    providers can be added without touching this test."""
+    free/cheap alternatives that actually expose a Whisper-style
+    transcription endpoint (currently: Groq). DeepSeek's API is
+    LLM-only and returns 404 on /audio/transcriptions — verified
+    empirically in #68 — so it isn't shipped as a curated option."""
     cloud = providers.list_cloud()
     ids = [p.id for p in cloud]
     assert "openai" in ids
     assert "groq" in ids
-    assert "deepseek" in ids
     openai = next(p for p in cloud if p.id == "openai")
     assert openai.base_url == "https://api.openai.com/v1"
     assert openai.default_model == "whisper-1"

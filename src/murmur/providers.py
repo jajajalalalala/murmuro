@@ -150,19 +150,13 @@ _CURATED_CLOUD: tuple[CloudProvider, ...] = (
         rate_hint="Free tier · paid: $0.04 / hour",
         curated=True,
     ),
-    # DeepSeek — OpenAI-compatible base URL; their audio transcription
-    # surface mirrors OpenAI's Whisper API. Cheap paid tier, no free
-    # tier as of writing.
-    CloudProvider(
-        id="deepseek",
-        label="DeepSeek",
-        base_url="https://api.deepseek.com/v1",
-        default_model="whisper-1",
-        models=("whisper-1",),
-        api_key_env="DEEPSEEK_API_KEY",
-        rate_hint="Pay-as-you-go · ~$0.005 / minute",
-        curated=True,
-    ),
+    # NB: DeepSeek's public API is LLM-only at the moment — their
+    # endpoint returns 404 on /audio/transcriptions. Empirically
+    # verified with a real key during PR #68. If they add Whisper
+    # later (their base URL is OpenAI-compatible) this entry can
+    # land. For now, users wanting to dictate via DeepSeek would
+    # have to add a custom provider pointing at a third-party
+    # gateway — not a baseline we can guarantee.
 )
 
 
