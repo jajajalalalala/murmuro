@@ -44,11 +44,11 @@ def _make_cfg() -> config_mod.Config:
 def test_window_constructs_with_four_pages(qapp):
     saved = []
     win = MainWindow(_make_cfg(), save_config=saved.append)
-    # Top nav: Home / Shortcuts / Models. About is now a standalone
-    # styled QPushButton at the bottom of the rail (not a QListWidget
-    # — that was painting a different-shade panel onto the rail).
-    # Stack still has 4 pages.
-    assert win._nav_top.count() == 3
+    # Top nav: Home / Shortcuts / Models — three styled QPushButtons
+    # in a vertical layout (the QListWidget version was painting a
+    # different-shade panel on top of the rail). About is its own
+    # button at the bottom; stack still has 4 pages.
+    assert [b.text() for b in win._nav_buttons] == ["Home", "Shortcuts", "Models"]
     assert win._about_button.text() == "About"
     assert win._stack.count() == 4
     assert win.home_page.auto_paste.isChecked() is True
