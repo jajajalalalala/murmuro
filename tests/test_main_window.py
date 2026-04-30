@@ -44,13 +44,16 @@ def _make_cfg() -> config_mod.Config:
 def test_window_constructs_with_four_pages(qapp):
     saved = []
     win = MainWindow(_make_cfg(), save_config=saved.append)
-    # Top nav: Home / Shortcuts / Models — three styled QPushButtons
-    # in a vertical layout (the QListWidget version was painting a
-    # different-shade panel on top of the rail). About is its own
-    # button at the bottom; stack still has 4 pages.
-    assert [b.text() for b in win._nav_buttons] == ["Home", "Shortcuts", "Models"]
+    # Top nav: Home / Shortcuts / Audio / Models — four styled
+    # QPushButtons in a vertical layout. Audio sits between Shortcuts
+    # and Models so the input-device picker is grouped with its
+    # closest semantic neighbour. About is its own button at the
+    # bottom of the rail. Stack has 5 pages now (added Audio).
+    assert [b.text() for b in win._nav_buttons] == [
+        "Home", "Shortcuts", "Audio", "Models",
+    ]
     assert win._about_button.text() == "About"
-    assert win._stack.count() == 4
+    assert win._stack.count() == 5
     assert win.home_page.auto_paste.isChecked() is True
     assert win.shortcuts_page.hotkey_recorder.value() == "<right_alt>"
 

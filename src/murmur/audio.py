@@ -2,9 +2,14 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import dataclass
 
 import numpy as np
 import sounddevice as sd
+
+from ._logging import get_logger
+
+_log = get_logger("audio")
 
 SAMPLE_RATE = 16_000
 CHANNELS = 1
@@ -24,11 +29,79 @@ _LEVEL_RMS_REFERENCE = 0.1
 _LEVEL_ALPHA = 0.3
 
 
+@dataclass(frozen=True)
+class InputDevice:
+    """One enumerable audio input the user can pick from."""
+
+    name: str           # human-readable, also persisted to Config.input_device
+    index: int          # PortAudio index — only valid for the current process
+    is_default: bool
+
+
+def list_input_devices() -> list[InputDevice]:
+    """Enumerate all input-capable audio devices the OS currently exposes.
+
+    Re-queries on every call so unplugged / replugged USB mics show up
+    immediately when the user re-opens the Audio page. Skips devices
+    with no input channels (PortAudio reports both directions in one
+    list) and silently degrades to an empty list if the audio backend
+    is unavailable (CI, headless tests, broken driver).
+    """
+    try:
+        devices = sd.query_devices()
+        default_pair = sd.default.device
+        default_index = (
+            default_pair[0] if isinstance(default_pair, (tuple, list)) else None
+        )
+    except Exception as e:  # noqa: BLE001
+        _log.warning("audio device enumeration failed: %s", e)
+        return []
+    out: list[InputDevice] = []
+    seen_names: set[str] = set()
+    for idx, dev in enumerate(devices):
+        if int(dev.get("max_input_channels", 0)) <= 0:
+            continue
+        name = (dev.get("name") or "").strip()
+        if not name or name in seen_names:
+            continue
+        seen_names.add(name)
+        out.append(
+            InputDevice(
+                name=name,
+                index=idx,
+                is_default=(default_index is not None and idx == default_index),
+            )
+        )
+    return out
+
+
+def resolve_input_device(saved_name: str) -> int | None:
+    """Translate a saved device *name* into a current PortAudio index.
+
+    PortAudio indices reshuffle between runs when devices come and go,
+    so we persist the human-readable name in Config and resolve it at
+    recording time. Returns None when the saved device is gone (or no
+    name was saved) — the caller falls back to the system default.
+    """
+    if not saved_name:
+        return None
+    for dev in list_input_devices():
+        if dev.name == saved_name:
+            return dev.index
+    _log.info("saved input device %r not found; falling back to default", saved_name)
+    return None
+
+
 class Recorder:
     """Start/stop microphone capture; returns concatenated samples on stop."""
 
-    def __init__(self, sample_rate: int = SAMPLE_RATE) -> None:
+    def __init__(
+        self,
+        sample_rate: int = SAMPLE_RATE,
+        device: int | None = None,
+    ) -> None:
         self.sample_rate = sample_rate
+        self.device = device       # None = system default; updated by set_device
         self._chunks: list[np.ndarray] = []
         self._stream: sd.InputStream | None = None
         self._lock = threading.Lock()
@@ -70,6 +143,7 @@ class Recorder:
             channels=CHANNELS,
             dtype=DTYPE,
             callback=self._callback,
+            device=self.device,
         )
         self._stream.start()
 
@@ -92,3 +166,14 @@ class Recorder:
     @property
     def is_recording(self) -> bool:
         return self._stream is not None
+
+    def set_device(self, device: int | None) -> None:
+        """Update the input device for future recordings.
+
+        Takes effect on the next ``start()`` call — we don't tear down
+        an in-flight stream because the user typically saves preferences
+        outside of an active recording. If they happen to be recording
+        when the change lands the current chunk completes, then the
+        next press picks up the new device.
+        """
+        self.device = device

@@ -222,6 +222,13 @@ def run_tray(cfg: config_mod.Config) -> int:
 
     open_window_action = QAction("Open Murmur…")
     menu.addAction(open_window_action)
+    # Deep-link entries: each one opens the main window pre-selected
+    # to its target page so the user can fix one specific thing in a
+    # single click.
+    edit_hotkey_action = QAction("Edit hotkey…")
+    menu.addAction(edit_hotkey_action)
+    mic_action = QAction("Microphone input…")
+    menu.addAction(mic_action)
     quit_action = QAction("Quit Murmur")
     menu.addAction(quit_action)
     tray.setContextMenu(menu)
@@ -315,9 +322,13 @@ def run_tray(cfg: config_mod.Config) -> int:
         app.quit()
 
     def open_main_window() -> None:
-        main_window.show()
-        main_window.raise_()
-        main_window.activateWindow()
+        main_window.show_page(main_window.PAGE_HOME)
+
+    def open_shortcuts_page() -> None:
+        main_window.show_page(main_window.PAGE_SHORTCUTS)
+
+    def open_audio_page() -> None:
+        main_window.show_page(main_window.PAGE_AUDIO)
 
     def on_config_saved(new_cfg: config_mod.Config) -> None:
         murmur.reload_config(new_cfg)
@@ -336,19 +347,14 @@ def run_tray(cfg: config_mod.Config) -> int:
         # toggled signal fires preferences_changed → MainWindow persists.
         main_window.home_page.play_beeps.setChecked(not checked)
 
-    def on_tray_activated(reason: QSystemTrayIcon.ActivationReason) -> None:
-        # Left click / double click on the tray icon opens the window.
-        # Right click is reserved for the context menu (handled by Qt).
-        if reason in (
-            QSystemTrayIcon.ActivationReason.Trigger,
-            QSystemTrayIcon.ActivationReason.DoubleClick,
-        ):
-            open_main_window()
-
     main_window.config_saved.connect(on_config_saved)
     silent_mode_action.toggled.connect(on_silent_mode_toggled)
     open_window_action.triggered.connect(open_main_window)
+    edit_hotkey_action.triggered.connect(open_shortcuts_page)
+    mic_action.triggered.connect(open_audio_page)
     quit_action.triggered.connect(quit_app)
-    tray.activated.connect(on_tray_activated)
+    # No tray.activated handler: per user feedback, clicking the tray
+    # icon should only show the menu (which Qt handles for us). The
+    # main window opens via menu items, not single-click.
 
     return app.exec()
