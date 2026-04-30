@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -266,58 +267,53 @@ class MainWindow(QMainWindow):
     def _build_bottom_rail_section(self) -> QWidget:
         """About row flush at the bottom of the left rail.
 
-        The previous version mixed in a theme toggle above About; that
-        landed in Home → Preferences instead (it's a preference, not
-        chrome — see ``HomePage._build_preferences_card``).
+        Earlier versions used a one-item ``QListWidget`` here so the
+        About row would inherit the top nav's selection styling. The
+        list widget's viewport paints itself with the QPalette
+        ``Base`` color, which is *slightly* lighter than the rail's
+        ``rail_bg`` — so the row read as a separate floating panel
+        sitting on the rail (the user flagged this in #59).
 
-        About lives in its own QListWidget so it inherits the same
-        selected-row styling as the top nav. We connect its selection
-        to the unified nav slot so picking About clears the top-nav
-        highlight and the stack flips to page 3.
+        Replaced it with a styled ``QPushButton``. Clicks toggle to
+        the About page; the ``[navItem="true"]`` style property
+        gives it the same hover + selected rendering as the top
+        nav rows. No QListWidget viewport, no color mismatch.
         """
-        self._nav_bottom = QListWidget()
-        self._nav_bottom.setObjectName("nav")
-        self._nav_bottom.addItem(QListWidgetItem("About"))
-        # No "current row" until the user clicks About — we keep the
-        # selection clear so picking About is a deliberate jump.
-        self._nav_bottom.setCurrentRow(-1)
-        # One-row height: bumped to 56 so the item's vertical padding
-        # has breathing room and "About" doesn't read as clipped at
-        # the bottom of the row. Coupled with the rail's bottom
-        # margin, the row sits clearly above the window edge.
-        self._nav_bottom.setFixedHeight(56)
-        # No scrollbar, no frame — it's a single decorative row.
-        self._nav_bottom.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
-        )
-        self._nav_bottom.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
-        )
-        self._nav_bottom.setFrameShape(QListWidget.Shape.NoFrame)
-        self._nav_bottom.itemSelectionChanged.connect(
-            self._on_bottom_nav_changed,
-        )
-        return self._nav_bottom
+        host = QWidget()
+        host.setObjectName("railBottom")
+        layout = QVBoxLayout(host)
+        layout.setContentsMargins(8, 0, 8, 0)
+        layout.setSpacing(0)
+
+        self._about_button = QPushButton("About")
+        self._about_button.setObjectName("aboutNav")
+        self._about_button.setProperty("navItem", True)
+        self._about_button.setCheckable(True)
+        self._about_button.setChecked(False)
+        self._about_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._about_button.clicked.connect(self._on_about_clicked)
+        layout.addWidget(self._about_button)
+
+        return host
 
     # ----- Navigation coordination ----------------------------------------
 
     def _on_top_nav_changed(self, row: int) -> None:
-        """Top-nav row changed — switch the stack and clear the bottom
-        nav's selection so we never highlight two destinations at once."""
+        """Top-nav row changed — switch the stack and clear the About
+        button's checked state so we never highlight two destinations
+        at once."""
         if row < 0:
             return
         self._stack.setCurrentIndex(row)
-        if self._nav_bottom.currentRow() != -1:
-            self._nav_bottom.blockSignals(True)
-            self._nav_bottom.setCurrentRow(-1)
-            self._nav_bottom.blockSignals(False)
+        if self._about_button.isChecked():
+            self._about_button.setChecked(False)
 
-    def _on_bottom_nav_changed(self) -> None:
-        """About selected — page index 3. Clears the top-nav highlight."""
-        if self._nav_bottom.currentRow() < 0:
-            return
-        # About is the 4th page (index 3).
+    def _on_about_clicked(self) -> None:
+        """About button clicked — switch to the About page (index 3)
+        and clear the top-nav highlight. The button stays checked
+        until another nav destination is picked."""
         self._stack.setCurrentIndex(3)
+        self._about_button.setChecked(True)
         self._nav_top.blockSignals(True)
         self._nav_top.setCurrentRow(-1)
         self._nav_top.blockSignals(False)

@@ -235,6 +235,28 @@ def _stylesheet(p: Palette) -> str:
         color: {p.rail_selected_text};
     }}
 
+    /* Standalone nav-row button (e.g. the bottom-of-rail About). Same
+       visual rules as ``QListWidget#nav::item`` but applied to a
+       button so it doesn't bring along QListWidget's viewport (whose
+       Base-color background was reading as a separate panel sitting
+       on the rail). Marked via ``setProperty("navItem", True)``. */
+    QPushButton[navItem="true"] {{
+        background: transparent;
+        border: none;
+        color: {p.rail_text};
+        text-align: left;
+        padding: 10px 14px;
+        margin: 2px 4px;
+        border-radius: 8px;
+    }}
+    QPushButton[navItem="true"]:hover {{
+        background: {p.surface_alt};
+    }}
+    QPushButton[navItem="true"]:checked {{
+        background: {p.rail_selected_bg};
+        color: {p.rail_selected_text};
+    }}
+
     /* Cards */
     QFrame[card="true"] {{
         background: {p.surface};
