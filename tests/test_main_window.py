@@ -117,8 +117,8 @@ def test_recording_a_new_hotkey_persists_via_apply(qapp):
         save_config=saved.append,
         relaunch_fn=lambda: relaunches.append(None),
     )
-    # Stub the modal so the test doesn't block on exec().
-    with patch.object(MainWindow, "_prompt_restart_for_hotkey"):
+    # Stub the modal as if the user clicked Restart so the save commits.
+    with patch.object(MainWindow, "_confirm_hotkey_restart", return_value=True):
         win.shortcuts_page.hotkey_recorder.set_value("<f9>")
         win.home_page.auto_paste.setChecked(False)
     assert saved[-1].hotkey == "<f9>"
@@ -135,7 +135,7 @@ def test_recorder_commit_alone_persists_new_hotkey(qapp):
         save_config=saved.append,
         relaunch_fn=lambda: None,
     )
-    with patch.object(MainWindow, "_prompt_restart_for_hotkey"):
+    with patch.object(MainWindow, "_confirm_hotkey_restart", return_value=True):
         win.shortcuts_page.hotkey_recorder._commit("<f9>")
     assert saved, "save_config was never called after recorder committed"
     assert saved[-1].hotkey == "<f9>"
@@ -181,7 +181,8 @@ def test_close_event_hides_instead_of_quitting(qapp):
 
 
 def test_hotkey_change_prompts_restart_modal(qapp):
-    """A hotkey change must show the restart modal exactly once."""
+    """A hotkey change must show the restart modal exactly once and only
+    save when the user confirms."""
     saved: list[config_mod.Config] = []
     win = MainWindow(
         _make_cfg(),
@@ -189,12 +190,12 @@ def test_hotkey_change_prompts_restart_modal(qapp):
         relaunch_fn=lambda: None,
     )
     with patch.object(
-        MainWindow, "_prompt_restart_for_hotkey"
-    ) as prompt_mock:
+        MainWindow, "_confirm_hotkey_restart", return_value=True
+    ) as confirm_mock:
         win.shortcuts_page.hotkey_recorder._commit("<f9>")
 
+    confirm_mock.assert_called_once_with()
     assert saved and saved[-1].hotkey == "<f9>"
-    prompt_mock.assert_called_once_with()
 
 
 def test_unrelated_change_does_not_prompt_restart(qapp):
@@ -207,12 +208,12 @@ def test_unrelated_change_does_not_prompt_restart(qapp):
         relaunch_fn=lambda: None,
     )
     with patch.object(
-        MainWindow, "_prompt_restart_for_hotkey"
-    ) as prompt_mock:
+        MainWindow, "_confirm_hotkey_restart"
+    ) as confirm_mock:
         win.home_page.auto_paste.setChecked(False)
 
     assert saved and saved[-1].auto_paste is False
-    prompt_mock.assert_not_called()
+    confirm_mock.assert_not_called()
 
 
 def test_model_change_alone_does_not_prompt_restart(qapp):
@@ -234,48 +235,89 @@ def test_model_change_alone_does_not_prompt_restart(qapp):
     win.models_page.apply_to_config = _mutate_local
 
     with patch.object(
-        MainWindow, "_prompt_restart_for_hotkey"
-    ) as prompt_mock:
+        MainWindow, "_confirm_hotkey_restart"
+    ) as confirm_mock:
         win._persist_changes()
 
     assert saved and saved[-1].local.model == "small"
-    prompt_mock.assert_not_called()
+    confirm_mock.assert_not_called()
 
 
-def test_modal_restart_button_calls_relaunch_fn(qapp):
-    """When the user clicks Restart, the injected relaunch_fn fires."""
+def test_modal_cancel_does_not_save_or_relaunch(qapp):
+    """Cancelling the modal must NOT persist the new hotkey and must
+    leave the in-memory cfg + shortcuts widget pointing at the old one.
+    That's the user-visible promise: the displayed hotkey matches what
+    the running app is bound to."""
+    saved: list[config_mod.Config] = []
     relaunches: list[None] = []
     win = MainWindow(
         _make_cfg(),
-        save_config=lambda _c: None,
+        save_config=saved.append,
+        relaunch_fn=lambda: relaunches.append(None),
+    )
+    original_hotkey = win._cfg.hotkey
+
+    with patch.object(
+        MainWindow, "_confirm_hotkey_restart", return_value=False
+    ):
+        win.shortcuts_page.hotkey_recorder._commit("<f9>")
+
+    assert saved == [], "no save should land when the user cancels"
+    assert relaunches == []
+    assert win._cfg.hotkey == original_hotkey
+    # And the widget must show the old hotkey again — the whole point.
+    assert win.shortcuts_page.hotkey_recorder.value() == original_hotkey
+
+
+def test_modal_restart_relaunches_via_qtimer(qapp):
+    """A confirmed restart must defer the relaunch via QTimer so the
+    QMessageBox can fully dismiss and _persist_changes can unwind before
+    the process image is replaced."""
+    from PySide6.QtTest import QTest
+
+    saved: list[config_mod.Config] = []
+    relaunches: list[None] = []
+    win = MainWindow(
+        _make_cfg(),
+        save_config=saved.append,
         relaunch_fn=lambda: relaunches.append(None),
     )
 
-    # Build a fake QMessageBox that reports the Restart button as clicked.
-    fake_box = _FakeMessageBox(click_text="Restart now")
-    with patch("murmur.main_window.QMessageBox", return_value=fake_box):
-        win._prompt_restart_for_hotkey()
+    with patch.object(
+        MainWindow, "_confirm_hotkey_restart", return_value=True
+    ):
+        win.shortcuts_page.hotkey_recorder._commit("<f9>")
 
+    # Save lands synchronously; relaunch is deferred to the next tick.
+    assert saved and saved[-1].hotkey == "<f9>"
+    assert relaunches == [], "relaunch must not fire synchronously"
+
+    QTest.qWait(20)
     assert relaunches == [None]
-    # Cancel must have been the default button — that's the whole point.
-    assert fake_box.default_button_text() == "Cancel"
 
 
-def test_modal_cancel_button_does_not_relaunch(qapp):
-    """Clicking Cancel keeps the running app alive; the new hotkey is
-    already saved to disk and takes effect on the next manual restart."""
-    relaunches: list[None] = []
-    win = MainWindow(
-        _make_cfg(),
-        save_config=lambda _c: None,
-        relaunch_fn=lambda: relaunches.append(None),
-    )
+def test_confirm_modal_default_button_is_cancel(qapp):
+    """Pin the Cancel-as-default detail by introspecting the QMessageBox
+    constructed inside _confirm_hotkey_restart. A stray Enter from the
+    recorder must NEVER fire the relaunch."""
+    win = MainWindow(_make_cfg(), save_config=lambda _c: None)
 
     fake_box = _FakeMessageBox(click_text="Cancel")
     with patch("murmur.main_window.QMessageBox", return_value=fake_box):
-        win._prompt_restart_for_hotkey()
+        confirmed = win._confirm_hotkey_restart()
 
-    assert relaunches == []
+    assert confirmed is False
+    assert fake_box.default_button_text() == "Cancel"
+
+
+def test_confirm_modal_returns_true_on_restart_click(qapp):
+    win = MainWindow(_make_cfg(), save_config=lambda _c: None)
+
+    fake_box = _FakeMessageBox(click_text="Restart now")
+    with patch("murmur.main_window.QMessageBox", return_value=fake_box):
+        confirmed = win._confirm_hotkey_restart()
+
+    assert confirmed is True
 
 
 class _FakeMessageBox:

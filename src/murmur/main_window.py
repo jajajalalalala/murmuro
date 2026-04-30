@@ -19,9 +19,10 @@ hotkey) doesn't auto-fire the restart.
 """
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable
 
-from PySide6.QtCore import QSize, Signal
+from PySide6.QtCore import QSize, QTimer, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -125,15 +126,34 @@ class MainWindow(QMainWindow):
     # ----- Persistence ----------------------------------------------------
 
     def _persist_changes(self) -> None:
-        previous_hotkey = self._cfg.hotkey
+        # Snapshot before applying so we can revert cleanly on cancel.
+        # Pages mutate the cfg in place, so without this snapshot the
+        # "previous" hotkey value is already overwritten by the time we
+        # get to the diff check.
+        previous = copy.deepcopy(self._cfg)
         draft = self._cfg
         draft = self.home_page.apply_to_config(draft)
         draft = self.shortcuts_page.apply_to_config(draft)
         draft = self.models_page.apply_to_config(draft)
+        hotkey_changed = previous.hotkey != draft.hotkey
+
+        if hotkey_changed and not self._confirm_hotkey_restart():
+            # Cancel: undo the in-memory mutation and reset the shortcuts
+            # widget so the displayed hotkey matches what the running app
+            # is actually bound to. Any other changes the user made in
+            # this same save (rare — pages emit on each edit) revert too,
+            # which matches the "abandon this save attempt" mental model.
+            self._cfg = previous
+            self.shortcuts_page.set_config(previous)
+            self.home_page.set_config(previous)
+            self.models_page.set_config(previous)
+            return
+
         try:
             self._save_config(draft)
         except Exception:  # noqa: BLE001
             _log.exception("failed to save config")
+            self._cfg = previous
             return
         self._cfg = draft
         self.home_page.set_config(draft)  # refresh the summary line
@@ -142,27 +162,31 @@ class MainWindow(QMainWindow):
         # up the new config without a relaunch.
         self.config_saved.emit(draft)
 
-        if previous_hotkey != draft.hotkey:
-            self._prompt_restart_for_hotkey()
+        if hotkey_changed:
+            # Defer the relaunch so the QMessageBox fully dismisses and
+            # this _persist_changes call unwinds before the process image
+            # is replaced. ``QTimer.singleShot(0, ...)`` runs on the next
+            # event-loop iteration, by which point the modal stack is
+            # clean.
+            QTimer.singleShot(0, self._relaunch_fn)
 
-    def _prompt_restart_for_hotkey(self) -> None:
-        """Ask the user before relaunching to bind the new hotkey.
+    def _confirm_hotkey_restart(self) -> bool:
+        """Show the restart-confirmation modal, return True iff the user
+        clicked Restart.
 
-        Hotkey changes need a process restart in production — see this
-        module's docstring for why. We default the dialog to Cancel so a
-        stray Enter (often the one that just committed the new hotkey
-        recorder) doesn't auto-fire the relaunch. That was the original
-        complaint behind PR #39's switch to a tray notification, which
-        in turn caused the silent-quit problem this dialog now solves.
+        Cancel is the default button so a stray Enter — often the one
+        that just committed the new hotkey via the recorder — dismisses
+        the dialog harmlessly. That was the original PR #39 motivation:
+        a Restart-default modal auto-fired before the user even saw it.
         """
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Question)
         box.setWindowTitle("Restart Murmur?")
-        box.setText("The new hotkey is saved.")
+        box.setText("Apply the new hotkey?")
         box.setInformativeText(
-            "Murmur needs to restart for it to take effect.\n\n"
-            "Choose Cancel to keep using your previous hotkey for now — "
-            "the new one will activate the next time Murmur starts."
+            "Murmur needs to restart for the new hotkey to take effect.\n\n"
+            "Choose Cancel to keep using your previous hotkey — your "
+            "change will be discarded."
         )
         cancel_btn = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
         restart_btn = box.addButton(
@@ -171,8 +195,7 @@ class MainWindow(QMainWindow):
         # Default = Cancel: a stray Enter must not auto-fire the relaunch.
         box.setDefaultButton(cancel_btn)
         box.exec()
-        if box.clickedButton() is restart_btn:
-            self._relaunch_fn()
+        return box.clickedButton() is restart_btn
 
     # ----- Window behavior ------------------------------------------------
 
