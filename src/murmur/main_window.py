@@ -144,18 +144,19 @@ class MainWindow(QMainWindow):
         self.home_page.set_config(draft)  # refresh the summary line
         self.config_saved.emit(draft)
 
-        # If the change is one we'd rather apply via a clean relaunch
-        # (model swap, provider swap, hotkey rebinding), surface a tray
-        # notification and auto-relaunch. Previously this was a modal
-        # "Restart Now / Cancel" dialog whose default button could be
-        # auto-activated by a trailing Enter keypress (the same Enter that
-        # had just committed the new hotkey or model selection), making
-        # the app appear to vanish without warning. The change is already
-        # saved on disk before we get here, so even if the relaunch is
-        # somehow missed the new value takes effect on next launch.
+        # Hotkey rebinding is the only remaining case where the in-process
+        # path is unsafe (pynput stop/start instability on macOS — see #38
+        # for the v1.1+ full hot-reload follow-up). Model and provider
+        # swaps now ride MurmurApp.reload_config's selective transcriber
+        # drop (PR #44), so the next push-to-talk press rebuilds from the
+        # new config without an os.execv. We still surface the shortcut-
+        # flavoured reason text — picked out by substring rather than
+        # index so a combined hotkey+model save tells the user about the
+        # part that's actually about to require the relaunch.
         reasons = restart_reasons(previous, draft)
-        if reasons:
-            self._notify_and_relaunch(reasons[0])
+        shortcut_reason = next((r for r in reasons if "shortcut" in r), None)
+        if shortcut_reason is not None:
+            self._notify_and_relaunch(shortcut_reason)
 
     def _notify_and_relaunch(self, reason: str) -> None:
         """Surface a tray notification and schedule the relaunch.

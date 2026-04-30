@@ -107,7 +107,11 @@ def test_provider_change_takes_precedence_over_model_field():
 # ---------- main_window integration -------------------------------------
 
 
-def test_persist_triggers_tray_notification_on_model_change(qapp):
+def test_persist_does_not_relaunch_on_model_change(qapp):
+    """Post-#45: switching the active local model rides
+    MurmurApp.reload_config's selective transcriber drop (PR #44) instead
+    of an os.execv. The Models-page-level integration belongs here; the
+    per-axis breakdown lives in tests/test_main_window.py."""
     saved: list[config_mod.Config] = []
     relaunches: list[None] = []
     tray = _FakeTray()
@@ -126,11 +130,9 @@ def test_persist_triggers_tray_notification_on_model_change(qapp):
     win._persist_changes()
 
     assert saved and saved[-1].local.model == "small"
-    assert tray.messages, "tray notification was not surfaced"
-    _title, body, _icon, _msecs = tray.messages[-1]
-    assert "the model change" in body
     QTest.qWait(20)
-    assert relaunches, "relaunch_fn was never invoked"
+    assert tray.messages == []
+    assert relaunches == []
 
 
 def test_persist_no_notification_when_only_unrelated_pref_changes(qapp):
