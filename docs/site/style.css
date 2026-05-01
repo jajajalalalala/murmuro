@@ -66,16 +66,16 @@ main {
   margin: 0 0 32px;
 }
 
-/* Demo frame — once the GIF lands we swap the inner placeholder for
- * an <img>. The frame keeps a 16:9 aspect so the layout doesn't jump
- * when the asset is added. */
+/* Demo frame — wraps a muted autoplay loop. The aspect ratio matches
+ * the encoded mp4 (1280×630 ≈ 2.03:1) so the layout doesn't jump when
+ * the video swaps in over the poster. */
 .hero-frame {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow);
   margin: 0 auto 32px;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 1280 / 630;
   max-width: 640px;
   overflow: hidden;
   display: flex;
@@ -83,14 +83,8 @@ main {
   justify-content: center;
 }
 
-.hero-frame[data-placeholder="true"] .hero-frame-inner {
-  color: var(--text-dim);
-  font-size: 14px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.hero-frame img {
+.hero-frame img,
+.hero-frame video {
   width: 100%;
   height: 100%;
   object-fit: cover;
