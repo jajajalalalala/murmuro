@@ -24,7 +24,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -273,6 +273,16 @@ class _WelcomeStep(_Step):
         ))
         layout.addStretch(1)
         self._refresh_status()
+
+        # Permissions can land asynchronously (the user toggles them
+        # in System Settings between window paints). A 1-second poll
+        # keeps the labels fresh so the user doesn't stare at a
+        # "Denied" line they just fixed. Stops automatically when
+        # the widget is deleted.
+        self._poll = QTimer(self)
+        self._poll.setInterval(1000)
+        self._poll.timeout.connect(self._refresh_status)
+        self._poll.start()
 
     def sub_header(self) -> str:
         return "Grant permissions so Murmur can hear your hotkey and paste at the cursor."

@@ -192,7 +192,8 @@ def run_tray(cfg: config_mod.Config) -> int:
     # in a friendlier flow than the bare "needs permission" QMessageBox.
     # The legacy ``_hint_accessibility_if_denied`` still fires on
     # subsequent launches if a returning user revoked the permission.
-    if not cfg.onboarded:
+    fresh_onboarding = not cfg.onboarded
+    if fresh_onboarding:
         from .onboarding import OnboardingWizard
 
         wizard = OnboardingWizard(cfg)
@@ -210,12 +211,21 @@ def run_tray(cfg: config_mod.Config) -> int:
         # doesn't today; cheap insurance).
         apply_theme(app, DARK if cfg.dark_mode else LIGHT)
 
-    if not _ensure_input_monitoring():
-        return 2
-
+    # Legacy permission gates (``_ensure_input_monitoring`` +
+    # ``_hint_accessibility_if_denied``). These are skipped when the
+    # user just walked through the onboarding wizard — the wizard
+    # already handled permission grant/skip and saved
+    # ``onboarded=true``. Surfacing a second QMessageBox immediately
+    # after the wizard for the SAME permission was the "shows up
+    # twice" feedback in #20-followup. The legacy gates still fire
+    # on subsequent launches if a returning user revoked permission
+    # in System Settings.
     accessibility_pending = False
-    if cfg.auto_paste:
-        accessibility_pending = _hint_accessibility_if_denied()
+    if not fresh_onboarding:
+        if not _ensure_input_monitoring():
+            return 2
+        if cfg.auto_paste:
+            accessibility_pending = _hint_accessibility_if_denied()
 
     bridge = _StateBridge()
     tray = QSystemTrayIcon()
