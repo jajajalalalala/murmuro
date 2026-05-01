@@ -99,12 +99,29 @@ def _ensure_input_monitoring(parent=None) -> bool:
         # Older macOS without IOHIDCheckAccess — let pynput try anyway.
         _log.info("IOHIDCheckAccess unavailable; proceeding without gate")
         return True
-    # On UNKNOWN, ask once. macOS only shows the prompt the first time.
+    # On UNKNOWN, ask once via the macOS native prompt. The native
+    # prompt has its own "Open System Settings" button — when the
+    # user clicks it, ``IOHIDRequestAccess`` returns False even
+    # though the OS already navigated them to the right place.
+    # That used to mean we'd ALSO show our own QMessageBox saying
+    # the same thing — the user reported seeing the prompt "twice".
+    # Fix: when status was UNKNOWN going in, trust that the OS
+    # native prompt handled the UX and just bail (relaunch on the
+    # user's next attempt picks up the granted state).
     if status == InputMonitoringStatus.UNKNOWN:
         _log.info("requesting Input Monitoring (will trigger system prompt)")
         if request_input_monitoring():
             return True
+        _log.info(
+            "Input Monitoring not yet granted; macOS native prompt was shown — "
+            "skipping the redundant in-app dialog and exiting cleanly"
+        )
+        return False
 
+    # status == DENIED at this point. The OS won't re-prompt, so an
+    # in-app dialog is the only way to nudge the user to System
+    # Settings. This branch fires for returning users who revoked
+    # the permission, NOT for first-time setup.
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Icon.Warning)
     box.setWindowTitle("Murmur needs Input Monitoring")
