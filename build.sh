@@ -105,7 +105,29 @@ echo "[build.sh] patching Info.plist..."
 echo "[build.sh] ad-hoc signing..."
 codesign --force --deep --sign - "$APP" >/dev/null
 
-# 7. Nudge Finder to drop its cached icon for this bundle. macOS keeps a
+# 7. Wipe macOS TCC permission entries for ``com.bonian.murmur``.
+#
+#    Each ad-hoc-signed rebuild has a different code-sign hash, so
+#    macOS treats each build as a distinct app for permission
+#    purposes. After a few rebuilds the user accumulates orphan
+#    entries in System Settings → Privacy & Security → Input
+#    Monitoring / Accessibility, all toggled ON, none belonging to
+#    the *currently-running* binary — the running app reads back
+#    "denied" despite three "Murmur" entries with green toggles.
+#
+#    Since each build effectively *is* a new identity, we own the
+#    cleanup: tccutil resets the bundle's TCC entries before the
+#    next launch. The user grants the new build once, with no
+#    leftover stale entries to confuse the picture. Real
+#    Developer-ID signing in v1.0 makes this loop go away.
+#
+#    Errors are tolerated (|| true) — first build of a fresh
+#    install legitimately has no entries to reset, and tccutil
+#    returns non-zero in that case.
+echo "[build.sh] resetting TCC permission entries for com.bonian.murmur..."
+tccutil reset All com.bonian.murmur 2>/dev/null || true
+
+# 8. Nudge Finder to drop its cached icon for this bundle. macOS keeps a
 #    per-bundle icon cache keyed by the bundle's mtime; touching the
 #    bundle bumps that mtime so the next Finder render reads the freshly
 #    embedded .icns instead of the cached one. Without this, even a
@@ -117,5 +139,11 @@ echo
 echo "[build.sh] build complete."
 echo "  open dist/Murmur.app"
 echo "  or drag dist/Murmur.app into /Applications"
+echo
+echo "  Privacy & Security has been reset for this bundle — when you"
+echo "  first launch, drag Murmur.app into Input Monitoring (and"
+echo "  Accessibility for auto-paste) to grant permissions to the"
+echo "  fresh code identity. Real notarized signing in v1.0 will"
+echo "  remove this rebuild dance."
 echo
 echo "  if Finder still shows the old icon, run: killall Finder"
