@@ -2,33 +2,46 @@
 
 > Press a key. Speak. Get text.
 
-Murmur is a personal voice-to-text dictation tool for macOS and Windows. Hold a hotkey, speak, release — your words appear at the cursor. Runs **locally by default** via [`faster-whisper`](https://github.com/SYSTRAN/faster-whisper), with an optional OpenAI Whisper API backend.
+Free, local-first dictation for macOS. Hold a hotkey, speak, release — your words appear at the cursor in any app. No subscription, no cloud round-trip, no telemetry.
+
+🌐 **[murmur splash & download →](https://jajajalalalala.github.io/murmur/)**
 
 ## Status
 
-**v0.5** — push-to-talk, packaged macOS `.app`, reliable auto-paste, main window with Home / Shortcuts / Models / About pages, full-keyboard hotkey coverage, themed UI, live model download progress, per-row model delete, start/stop beeps + silent mode, bottom-anchored HUD, and a `--uninstall` command. See [ROADMAP.md](ROADMAP.md).
+**v1.0** — packaged `.app`, push-to-talk, auto-paste, themed UI, local + cloud providers, click-to-record hotkeys (incl. `Fn`), live model download progress, start/stop beeps, silent mode, full uninstall command, GitHub Pages splash, automated release pipeline. See [ROADMAP.md](ROADMAP.md) for the full log and v1.1+ backlog.
 
 ## Features
 
-- 🎙️  Push-to-talk global hotkey, configured by **clicking Record and pressing the key** (default `Right Option` on macOS, `Right Alt` on Windows)
-- 🧠 Local Whisper transcription via faster-whisper (no internet required); pick from `tiny` → `large-v3` and `distil-large-v3` with one-click downloads
-- 🔌 Pluggable backend: switch to OpenAI Whisper API by entering an env-var name; the registry is structured so Groq / Kimi / DeepSeek slot in next
-- 📋 Reliable auto-paste at cursor on macOS (works around CGEventPost autorepeat quirks and HUD focus stealing), with clipboard-only fallback
-- 🪶 Menu bar / system tray app — no Dock icon, no focus-stealing HUD; recording HUD anchors at the **bottom** of the screen, out of the way of the menu bar / notch
-- 🔔 Optional **start/stop beeps** for eyes-free push-to-talk confirmation; flip **Silent mode** in the tray menu (or the Home checkbox) to mute them
-- 🧹 One-line full uninstall: `murmur --uninstall` wipes config, logs, and downloaded Whisper models (other HuggingFace caches are left alone). Add `--dry-run` to preview, `--yes` to skip the prompt
-- 🪟 Main window with four pages: **Home** (state + last 5 transcripts + global toggles), **Shortcuts**, **Models**, **About**
+- 🎙️  **Push-to-talk hotkey** — hold any key (default `right ⌥` on macOS, `right Alt` on Windows). Click-to-record a new shortcut from any key on the keyboard, including `Fn`.
+- 🧠 **Local Whisper** via [`faster-whisper`](https://github.com/SYSTRAN/faster-whisper) — pick `tiny` → `large-v3` and `distil-large-v3`. One-click download with progress bar; per-row delete to free disk.
+- 🔌 **Optional cloud** — OpenAI / Groq / Kimi / DeepSeek / any OpenAI-compatible endpoint. Pluggable provider registry, no lock-in.
+- 📋 **Auto-paste at cursor** — works in browsers, IDEs, terminals, Slack, Notion, Mail. Falls back to clipboard if the focused app blocks paste.
+- 🪶 **Menu-bar only** — no Dock icon, no focus stealing. Recording HUD anchors at bottom-center, out of the menu bar / notch.
+- 🔔 **Start/stop beeps** — eyes-free confirmation. Toggle Silent mode from the tray menu or Home.
+- 🧹 **Clean uninstall** — `murmur --uninstall` wipes config, logs, and downloaded Whisper models. `--dry-run` previews; other HuggingFace caches are left alone.
 
 ## Non-goals
 
-- AI rewriting / grammar fixing (use a separate tool)
-- Cloud sync, accounts, teams
-- Real-time streaming transcription
-- Mobile platforms
+Murmur is a **dictation** tool, not an AI assistant.
 
-## Quick start
+- ❌ AI rewriting / grammar fixing
+- ❌ Cloud sync, accounts, teams
+- ❌ Real-time streaming transcription
+- ❌ Mobile platforms
 
-The bundled `start.sh` installs [uv](https://github.com/astral-sh/uv) (if missing), pins Python via `.python-version`, creates an isolated venv, installs deps, and launches Murmur. **You do not need a system Python — uv installs it.**
+## Install
+
+### macOS — recommended
+
+1. Download `Murmur.app` from the [latest release](https://github.com/jajajalalalala/murmur/releases/latest).
+2. Drag it into `/Applications`.
+3. Launch — macOS will prompt for **Microphone** and **Input Monitoring** permissions. Grant both, then click **Quit & Reopen** when prompted.
+
+To launch on boot, add Murmur to **System Settings → General → Login Items**.
+
+### From source
+
+The bundled `start.sh` installs [uv](https://github.com/astral-sh/uv) (if missing), pins Python via `.python-version`, creates an isolated venv, installs deps, and launches the menu-bar app. **No system Python required.**
 
 ```bash
 git clone https://github.com/jajajalalalala/murmur.git
@@ -39,91 +52,71 @@ cd murmur
 ./start.sh --reset      # wipe .venv and reinstall
 ```
 
-To remove Murmur entirely:
+To build a standalone `.app` from source:
+
+```bash
+./build.sh              # produces dist/Murmur.app
+./build.sh --clean      # wipe dist/ and build/ first
+```
+
+The build bundles Python + all deps, embeds the icon, sets `LSUIElement=true` (menu-bar only), patches Info.plist with permission strings, and ad-hoc-codesigns the bundle.
+
+### Windows
+
+Run from source via `./start.sh` (WSL or Git Bash). Native `Murmur.exe` packaging is on the v1.1+ backlog — no Windows daily-driver yet.
+
+## Usage
+
+1. **Hold the hotkey** (default `right ⌥`).
+2. **Speak.**
+3. **Release.** Text appears at your cursor.
+
+The first run downloads a Whisper model (~150 MB for `base`).
+
+### Change the hotkey
+
+Tray icon → **Open Murmur…** → **Shortcuts** → click **Record** → press the key (or combo) you want. Modifier-only hotkeys commit on release; combos with a non-modifier (e.g. `⌃⇧Space`) commit on the non-modifier press. `Esc` cancels.
+
+Power users can hand-edit the `hotkey` field in the config file (path printed by `murmur --show-config`) using [pynput hotkey syntax](https://pynput.readthedocs.io/en/latest/keyboard.html#monitoring-the-keyboard) — e.g. `<f9>`, `<ctrl>+<shift>+<space>`.
+
+### Pick a model
+
+Tray icon → **Open Murmur…** → **Models**:
+
+- **Local (on-device)** — list of faster-whisper models with size + a Download or Use button. The first transcription after picking a fresh model has a small load-into-memory delay; subsequent ones are instant.
+- **Cloud** — enter the env var name that holds your API key (default `OPENAI_API_KEY`). The status line under the field tells you whether the var is set in the current session.
+
+The Models page is wired through a small provider registry — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for adding a new one.
+
+### Uninstall
 
 ```bash
 murmur --uninstall --dry-run   # preview what would be removed
 murmur --uninstall --yes       # actually remove (config, logs, Whisper caches)
 ```
 
-The bundled `Murmur.app` and the macOS Privacy & Security entries are
-listed in the printed plan but not deleted automatically — drag the app
-to the Trash and revoke the toggles manually.
+The bundled `Murmur.app` and the macOS Privacy & Security entries are listed in the printed plan but not deleted automatically — drag the app to the Trash and revoke the toggles manually.
 
-The first run downloads a Whisper model (~150 MB for `base`).
+## macOS permissions — what's needed and why
 
-### Default hotkey
-- macOS: `right Option (⌥)` — hold to record, release to transcribe
-- Windows: `right Alt`
-
-Change it from the menu bar: click the Murmur tray icon → **Open Murmur…** → **Shortcuts** → click **Record** → press the key (or combo) you want. Modifier-only hotkeys commit on release; combos with a non-modifier (e.g. `⌃⇧Space`) commit on the non-modifier press. Esc cancels.
-
-Power users can still hand-edit the `hotkey` field in the config file (printed by `murmur --show-config`) using [pynput hotkey syntax](https://pynput.readthedocs.io/en/latest/keyboard.html#monitoring-the-keyboard) — e.g. `<f9>`, `<ctrl>+<shift>+<space>`.
-
-### Picking a model
-
-Open the main window → **Models** page:
-
-- **Local (on-device)** — list of faster-whisper models with size + a Download or Use button. Click Download to fetch the model into the HuggingFace cache; flip to it with **Use**. The first transcription after picking a fresh model has a small load-into-memory delay; subsequent ones are instant.
-- **OpenAI Whisper** — enter the env var name that holds your API key (default `OPENAI_API_KEY`). The page tells you whether the var is currently set in your shell. The status line under the field tells you whether the var is currently set in this session.
-
-The Models page is wired through a small provider registry, so the next provider (Groq, Kimi, DeepSeek, custom OpenAI-compatible endpoint) is a one-file extension — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-### macOS permissions
-
-Murmur needs **two** permissions on macOS — both granted to whichever binary is running:
+Murmur needs two grants:
 
 1. **Microphone** — recording audio.
-2. **Input Monitoring** — observing the global hotkey. Without this you'll see
-   `This process is not trusted!` and the hotkey will silently do nothing.
+2. **Input Monitoring** — observing the global hotkey. Without this you'll see `This process is not trusted!` in the log and the hotkey will silently do nothing.
 
-On first launch Murmur asks macOS to show the prompt. If you previously denied
-or never saw it, Murmur opens a dialog with an "Open System Settings" button
-that drops you into **System Settings → Privacy & Security → Input Monitoring**.
-
-> ⚠️  macOS only re-checks Input Monitoring at process start. After flipping
-> the toggle ON, **quit and relaunch Murmur** for it to take effect.
+> ⚠️  macOS only re-checks Input Monitoring at process start. After flipping the toggle ON, **quit and relaunch Murmur** for it to take effect.
 
 **Which binary needs the permission?**
+
 - If you launched via `./start.sh`, it's `.venv/bin/python` (or your terminal app, depending on macOS version). The grant is fragile — it can break if the venv is recreated.
-- If you launched `dist/Murmur.app`, the grant attaches to the bundle and survives rebuilds. **This is the recommended path for daily use.**
+- If you launched the bundled `Murmur.app`, the grant attaches to the bundle. **This is the recommended path for daily use.**
 
-## Run as a real macOS app (no terminal)
-
-Once you've used `start.sh` once and confirmed it works, you can build a standalone `Murmur.app`:
-
-```bash
-./build.sh                      # produces dist/Murmur.app
-open dist/Murmur.app            # or drag into /Applications
-```
-
-The build:
-- Bundles Python + all dependencies, so the app runs without any system Python
-- Generates and embeds the Murmur icon (teal/violet microphone)
-- Sets `LSUIElement=true` so Murmur lives only in the menu bar — no Dock icon
-- Adds the macOS permission strings so the prompts are human-readable
-- Ad-hoc-codesigns the bundle so Gatekeeper allows it on your machine
-
-Drag `Murmur.app` into `/Applications` and add it to System Settings → General → **Login Items** to launch on boot.
-
-> **Windows:** packaging support is on the roadmap (v1.0). For now, run via `./start.sh` on Windows under WSL or Git Bash.
+> Note on rebuilds: each ad-hoc-signed `./build.sh` produces a new code identity, so macOS treats it as a new app and asks for permission again. `build.sh` runs `tccutil reset` automatically to keep stale entries from piling up. Real Developer-ID notarization (which would make grants persist across rebuilds) is on the v1.1+ backlog — for the released `.app` from GitHub, this only matters when you upgrade to a newer release.
 
 ## Architecture
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module layout and data flow.
 
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md). TL;DR:
-
-- **v0.1** ✅ CLI: record → transcribe → clipboard
-- **v0.2** ✅ Global hotkey + tray icon
-- **v0.3** ✅ Auto-paste at cursor + recording HUD (focus-safe NSPanel)
-- **v0.4** ✅ Main window UI: Home / Shortcuts / Models, click-to-record hotkey, local model downloads
-- **v0.5** Daily-driver polish: full-keyboard hotkey coverage, colorful UI redesign, timestamped transcript table, model download progress, then Groq / Kimi / DeepSeek
-- **v1.0** First-run onboarding + Windows packaging + GitHub release
-- **v1.1+** Hands-free toggle, custom vocabulary, transcript history, AI rewrite (opt-in)
-
 ## License
 
-MIT
+[MIT](LICENSE)

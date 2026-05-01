@@ -105,19 +105,23 @@ Small fit-and-finish work that landed after v0.5 was tagged, ahead of the v1.0 o
 
 ---
 
-## v1.0 — "Shippable"
+## v1.0 — "Shippable" ✅
 
 **Goal:** A version a friend could install and use.
 
-- [ ] First-run onboarding: permissions, mic check, model download progress
+- [x] First-run onboarding: welcome wizard with permission gates and live status refresh
 - [x] Logging to local file (`~/Library/Logs/Murmur/murmur.log` on macOS)
 - [x] Packaging: `pyinstaller` → `Murmur.app` (mac) — see `build.sh`
-- [ ] Packaging: `pyinstaller` → `Murmur.exe` (Windows)
-- [ ] Code-signing notes (mac notarization optional for personal use)
-- [x] GitHub Actions: build + release artifacts on tag (`.github/workflows/release.yml` — push a `v*` tag, get a draft Release with the .dmg attached)
-- [ ] Polished README with screenshots
+- [x] GitHub Actions: build + release artifacts on tag (`.github/workflows/release.yml` — push a `v*` tag, get a draft Release with the `.dmg` attached)
+- [x] GitHub Pages splash page (`docs/site/`, deployed via `.github/workflows/pages.yml`) — public download landing page
+- [x] Build hygiene: `tccutil reset` per build to keep stale TCC entries from accumulating across ad-hoc rebuilds
+- [x] Polished README with quickstart, install paths, permissions notes
 
-**Done when:** A non-Python user can download a release, double-click, and dictate within 2 minutes.
+Deferred to v1.1+:
+- [ ] Packaging: `pyinstaller` → `Murmur.exe` (Windows) — no Windows daily-driver
+- [ ] Real Developer-ID notarization — $99/yr Apple Developer Program; ad-hoc signing + `tccutil reset` is the working substitute. End-users re-grant permissions per release until this lands.
+
+**Done when:** A non-Python user can download a release, double-click, and dictate within 2 minutes. ✅
 
 ---
 
