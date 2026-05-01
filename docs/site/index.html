@@ -11,7 +11,9 @@
   <meta property="og:description" content="Free, local-first dictation for macOS. No subscription, no cloud, no telemetry." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://jajajalalalala.github.io/murmur/" />
+  <meta property="og:image" content="https://jajajalalalala.github.io/murmur/icon.png" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://jajajalalalala.github.io/murmur/icon.png" />
 
   <link rel="icon" type="image/png" href="icon.png" />
   <link rel="stylesheet" href="style.css" />
@@ -23,17 +25,27 @@
       <h1>Press a key.<br />Speak. Get text.</h1>
       <p class="tagline">Free, local-first dictation for macOS.</p>
 
-      <!-- Hero placeholder — once #22 produces ``assets/hero.gif`` the build
-           workflow will copy it into ``docs/site/`` and we drop the
-           ``data-placeholder`` attribute. -->
-      <div class="hero-frame" data-placeholder="true">
-        <div class="hero-frame-inner">
-          <span>5-second demo coming soon</span>
-        </div>
+      <!-- 5-second demo loop. Encoded as an autoplay-muted-loop ``<video>``
+           rather than a GIF — at 1280×630 / 30fps, the H.264 mp4 is ~50 KB
+           where an equivalent GIF would be 5–10 MB. ``poster`` shows a
+           still frame instantly while the video preloads; ``playsinline``
+           keeps iOS from popping into fullscreen. -->
+      <div class="hero-frame">
+        <video class="hero-video"
+               autoplay muted loop playsinline preload="metadata"
+               poster="hero.jpg"
+               aria-label="Murmur recording, transcribing, and pasting text into the focused app in five seconds">
+          <source src="hero.mp4" type="video/mp4">
+        </video>
       </div>
 
       <div class="cta-row">
-        <a class="btn btn-primary" href="https://github.com/jajajalalalala/murmur/releases/latest">
+        <!-- Direct DMG download. ``releases/latest/download/<asset>`` is a
+             GitHub redirect that always points at the matching asset on the
+             newest non-draft Release, so this URL never goes stale on a
+             version bump. The stable ``Murmur.dmg`` filename is produced by
+             the release workflow (see .github/workflows/release.yml). -->
+        <a class="btn btn-primary" href="https://github.com/jajajalalalala/murmur/releases/latest/download/Murmur.dmg">
           Download for Mac
           <span class="btn-sub">macOS 13+ · Apple Silicon &amp; Intel</span>
         </a>

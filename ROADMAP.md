@@ -12,7 +12,7 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 - [x] `audio.py` — record from default mic to in-memory PCM (16 kHz mono)
 - [x] `transcribe/base.py` — `Transcriber` interface
 - [x] `transcribe/local.py` — `faster-whisper` backend, lazy model load
-- [x] `transcribe/openai_api.py` — OpenAI `audio.transcriptions` backend
+- [x] `transcribe/openai_compatible.py` — OpenAI / Groq / DeepSeek / Kimi audio-transcriptions backend (one file covers any OpenAI-compatible endpoint)
 - [x] `config.py` — load/save TOML config in user config dir
 - [x] `__main__.py` — interactive CLI: Enter to start/stop, prints text + copies to clipboard
 

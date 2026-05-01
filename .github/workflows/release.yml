@@ -87,8 +87,18 @@ jobs:
       - name: Package Murmur.app into a dmg
         # hdiutil ships with macOS — no extra action needed. UDZO = compressed
         # read-only image, which is the standard format for distributable dmgs.
+        #
+        # We attach two filenames per release:
+        #   * Murmur-<tag>.dmg — version-stamped, useful for archival and for
+        #     users who keep multiple downloads side-by-side.
+        #   * Murmur.dmg       — stable filename so the splash page can use the
+        #     ``releases/latest/download/Murmur.dmg`` redirect URL and the
+        #     "Download for Mac" button never goes stale on a new release. The
+        #     stable copy is just a duplicate of the versioned dmg, so the SHA
+        #     matches and we don't double the build cost.
         run: |
-          DMG="Murmur-${{ steps.tag.outputs.name }}.dmg"
+          VERSIONED="Murmur-${{ steps.tag.outputs.name }}.dmg"
+          STABLE="Murmur.dmg"
           STAGE="$(mktemp -d)"
           cp -R dist/Murmur.app "$STAGE/"
           ln -s /Applications "$STAGE/Applications"
@@ -97,8 +107,10 @@ jobs:
             -srcfolder "$STAGE" \
             -ov \
             -format UDZO \
-            "$DMG"
-          echo "DMG_PATH=$DMG" >> "$GITHUB_ENV"
+            "$VERSIONED"
+          cp "$VERSIONED" "$STABLE"
+          echo "DMG_PATH=$VERSIONED" >> "$GITHUB_ENV"
+          echo "DMG_STABLE_PATH=$STABLE" >> "$GITHUB_ENV"
 
       - name: Upload dmg as workflow artifact
         uses: actions/upload-artifact@v4
@@ -107,7 +119,7 @@ jobs:
           path: ${{ env.DMG_PATH }}
           if-no-files-found: error
 
-      - name: Create GitHub Release and attach dmg
+      - name: Create GitHub Release and attach dmgs
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
@@ -115,4 +127,6 @@ jobs:
           draft: true
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: ${{ env.DMG_PATH }}
+          files: |
+            ${{ env.DMG_PATH }}
+            ${{ env.DMG_STABLE_PATH }}

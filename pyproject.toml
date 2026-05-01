@@ -9,7 +9,7 @@ description = "Press a key, speak, get text. A minimal local-first dictation too
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Murmur" }]
+authors = [{ name = "Bonian Hu" }]
 dependencies = [
     "sounddevice>=0.4.6",
     "numpy>=1.24",

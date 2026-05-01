@@ -57,7 +57,7 @@ IDLE ──hotkey-down──▶ RECORDING ──hotkey-up──▶ TRANSCRIBING 
 | Concern | macOS | Windows |
 |---|---|---|
 | Mic permission | TCC prompt on first record | UAC-free |
-| Global hotkey | `pynput.keyboard.GlobalHotKeys`; `fn` key not capturable → fall back to `right_option` | `pynput` works for most keys |
+| Global hotkey | `pynput.keyboard.GlobalHotKeys`; `fn` (🌐) key supported via a side-channel `NSEvent` flagsChanged monitor (`fn_monitor.py` + `FnFocusMonitor` in the recorder), since Cocoa never delivers `keyDown:` for Fn | `pynput` works for most keys |
 | Paste | `cmd+v` via `pynput` | `ctrl+v` via `pynput` |
 | Tray icon | `QSystemTrayIcon`; hide Dock with `LSUIElement=true` in plist | `QSystemTrayIcon` works natively |
 | Packaging | `pyinstaller --windowed` → `.app` | `pyinstaller` → `.exe` + installer |
@@ -70,7 +70,7 @@ class Transcriber(Protocol):
     def transcribe(self, pcm: np.ndarray, sample_rate: int, language: str | None) -> str: ...
 ```
 
-Adding a new backend = one file implementing this Protocol + one entry in `config.backend`.
+Adding a new backend = one file implementing this Protocol + one entry in the `providers.py` registry.
 
 ## Config schema
 
@@ -78,19 +78,30 @@ Adding a new backend = one file implementing this Protocol + one entry in `confi
 # ~/Library/Application Support/Murmur/config.toml  (mac)
 # %APPDATA%\Murmur\config.toml                       (windows)
 
-backend = "local"          # "local" | "openai"
+# Active provider id, looked up in providers.py. ``"local"`` runs
+# faster-whisper on-device; any other id (``"openai"``, ``"groq"``,
+# ``"deepseek"``, ``"kimi"``, or a user-added custom id) selects an
+# OpenAI-compatible cloud backend.
+cloud_provider_id = "local"
+
 language = "auto"          # ISO 639-1 or "auto"
 hotkey = "<right_alt>"     # pynput hotkey syntax
 auto_paste = true
+play_beeps = true          # start/stop tones; muted by Silent mode
+onboarded = true           # set true after the first-run wizard finishes
 
 [local]
-model = "base"             # tiny | base | small | medium | large-v3
+model = "base"             # "" | tiny | base | small | medium | large-v3 | distil-large-v3
 device = "auto"            # auto | cpu | cuda | mps
 compute_type = "int8"      # int8 | float16 | float32
 
 [openai]
 api_key_env = "OPENAI_API_KEY"
 model = "whisper-1"
+
+# Legacy ``backend = "local" | "openai"`` from pre-v0.5 configs is read
+# at load time and migrated into ``cloud_provider_id`` automatically; new
+# writes only emit the new field.
 ```
 
 ## Why these choices

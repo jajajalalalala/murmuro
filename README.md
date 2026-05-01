@@ -33,11 +33,31 @@ Murmur is a **dictation** tool, not an AI assistant.
 
 ### macOS — recommended
 
-1. Download `Murmur.app` from the [latest release](https://github.com/jajajalalalala/murmur/releases/latest).
-2. Drag it into `/Applications`.
-3. Launch — macOS will prompt for **Microphone** and **Input Monitoring** permissions. Grant both, then click **Quit & Reopen** when prompted.
+1. **Download** `Murmur.dmg` — [direct download](https://github.com/jajajalalalala/murmur/releases/latest/download/Murmur.dmg) or [release page](https://github.com/jajajalalalala/murmur/releases/latest).
+2. **Drag** `Murmur.app` from the mounted `.dmg` into `/Applications`.
+3. **Clear the macOS quarantine flag** so Gatekeeper lets the app launch:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Murmur.app
+   ```
+
+   Without this, macOS refuses to open the app with the warning *"Apple cannot check it for malicious software."* This is one-time per install. (Why this is needed → see [Why the bypass?](#why-the-quarantine-bypass) below.)
+4. **Launch** Murmur. macOS will prompt for **Microphone** and **Input Monitoring** permissions — grant both, then click **Quit & Reopen** when prompted.
 
 To launch on boot, add Murmur to **System Settings → General → Login Items**.
+
+#### Why the quarantine bypass?
+
+macOS Gatekeeper refuses to launch downloaded apps unless they are **notarized** through Apple — a service that requires a paid [Apple Developer Program](https://developer.apple.com/programs/) membership ($99/yr). Murmur v1.0 ships **ad-hoc signed** (free, but not notarized), so every download arrives with a `com.apple.quarantine` flag that blocks launch.
+
+The `xattr -dr com.apple.quarantine …` command strips that flag and tells macOS *"I trust this download."* It does **not** disable Gatekeeper system-wide and does **not** weaken your security for other apps.
+
+If you'd prefer a workflow that avoids this step entirely:
+
+- **Build from source** ([instructions below](#from-source)) — local builds aren't quarantined.
+- **Verify the SHA256** of the downloaded `.dmg` against the value on the [release page](https://github.com/jajajalalalala/murmur/releases/latest) before running `xattr` if you want a manual integrity check.
+
+Real Apple-notarized signing is on the [v1.1+ roadmap](ROADMAP.md). Once it lands, end users won't need this step.
 
 ### From source
 
