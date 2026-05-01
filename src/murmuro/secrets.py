@@ -3,7 +3,7 @@
 Realises ADR-0001 (`docs/adr/0001-api-key-storage.md`). One read path, two
 sources, deterministic precedence:
 
-1. ``keyring.get_password("murmur", provider_id)`` — the OS keychain
+1. ``keyring.get_password("murmuro", provider_id)`` — the OS keychain
    (macOS Keychain / Windows Credential Manager / Secret Service on
    Linux). This is where the Models page writes user-pasted keys.
 2. The environment variable ``<PROVIDER_ID>_API_KEY`` (e.g.
@@ -30,7 +30,7 @@ import os
 
 _log = logging.getLogger(__name__)
 
-_SERVICE = "murmur"
+_SERVICE = "murmuro"
 
 
 def _env_var_name(provider_id: str, env_var: str | None) -> str:

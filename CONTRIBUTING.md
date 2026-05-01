@@ -1,6 +1,6 @@
-# Contributing to Murmur
+# Contributing to Murmuro
 
-Murmur is a personal tool, but it follows a real engineering workflow so that anyone (human or AI agent) can pick it up months from now and ship a change without breaking anything.
+Murmuro is a personal tool, but it follows a real engineering workflow so that anyone (human or AI agent) can pick it up months from now and ship a change without breaking anything.
 
 ## TL;DR
 
@@ -79,7 +79,7 @@ If your change ticks a checkbox in [ROADMAP.md](ROADMAP.md), tick it. If it adds
 - `ruff` enforces formatting and lint. Run `ruff check --fix` before committing.
 - No trailing whitespace, no debug prints in committed code.
 - Prefer explicit imports over `*`.
-- Public modules go in `src/murmur/`, tests in `tests/`. Mirror the source path.
+- Public modules go in `src/murmuro/`, tests in `tests/`. Mirror the source path.
 
 ## Dependencies
 
@@ -97,7 +97,7 @@ Open an issue with:
 
 - macOS / Windows version
 - Python version (`.venv/bin/python --version`)
-- Output of `murmur --show-config`
+- Output of `murmuro --show-config`
 - Steps to reproduce, expected vs. actual
 
 ## License

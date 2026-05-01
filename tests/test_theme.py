@@ -14,7 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtGui import QPalette  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from murmur.ui.theme import (  # noqa: E402
+from murmuro.ui.theme import (  # noqa: E402
     ACCENT,
     DARK,
     LIGHT,
@@ -53,9 +53,9 @@ def test_helpers_set_property_flags(qapp):
 
 
 def test_force_theme_env_var(qapp, monkeypatch):
-    monkeypatch.setenv("MURMUR_FORCE_THEME", "dark")
+    monkeypatch.setenv("MURMURO_FORCE_THEME", "dark")
     p = apply_theme(qapp)
     assert p.name == "dark"
-    monkeypatch.setenv("MURMUR_FORCE_THEME", "light")
+    monkeypatch.setenv("MURMURO_FORCE_THEME", "light")
     p = apply_theme(qapp)
     assert p.name == "light"

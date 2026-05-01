@@ -1,10 +1,10 @@
 # Tag-triggered release pipeline.
 #
 # Push a tag like `v0.6.0` or `v0.6.0-rc1` and this workflow:
-#   1. Builds dist/Murmur.app on macos-14 (Apple Silicon) via the existing
+#   1. Builds dist/Murmuro.app on macos-14 (Apple Silicon) via the existing
 #      build.sh, which already does PyInstaller + Info.plist patch + ad-hoc
 #      codesign.
-#   2. Wraps the .app in a Murmur-<tag>.dmg using `hdiutil create` directly.
+#   2. Wraps the .app in a Murmuro-<tag>.dmg using `hdiutil create` directly.
 #      We chose hdiutil over a third-party action (e.g. LinusU/action-create-dmg)
 #      because the maintained actions all wrap hdiutil anyway, add layout/styling
 #      knobs we don't need for v1.0, and pull in extra dependencies. A two-line
@@ -15,7 +15,7 @@
 # Distribution notes (v1.0):
 #   The .app is ad-hoc signed only — it is NOT signed with an Apple Developer ID
 #   and is NOT notarized. First-launch users will need to right-click → Open or
-#   clear the quarantine bit (`xattr -dr com.apple.quarantine Murmur.app`).
+#   clear the quarantine bit (`xattr -dr com.apple.quarantine Murmuro.app`).
 #   Buying a Developer ID cert ($99/year) and wiring up notarytool is tracked
 #   in the v1.1+ backlog in ROADMAP.md.
 
@@ -77,33 +77,33 @@ jobs:
           uv venv --python "${{ steps.python_version.outputs.version }}" .venv
           uv pip install --python .venv/bin/python -e ".[gui,build]"
 
-      - name: Build Murmur.app
+      - name: Build Murmuro.app
         run: ./build.sh
 
       - name: Resolve tag name
         id: tag
         run: echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Package Murmur.app into a dmg
+      - name: Package Murmuro.app into a dmg
         # hdiutil ships with macOS — no extra action needed. UDZO = compressed
         # read-only image, which is the standard format for distributable dmgs.
         #
         # We attach two filenames per release:
-        #   * Murmur-<tag>.dmg — version-stamped, useful for archival and for
+        #   * Murmuro-<tag>.dmg — version-stamped, useful for archival and for
         #     users who keep multiple downloads side-by-side.
-        #   * Murmur.dmg       — stable filename so the splash page can use the
-        #     ``releases/latest/download/Murmur.dmg`` redirect URL and the
+        #   * Murmuro.dmg       — stable filename so the splash page can use the
+        #     ``releases/latest/download/Murmuro.dmg`` redirect URL and the
         #     "Download for Mac" button never goes stale on a new release. The
         #     stable copy is just a duplicate of the versioned dmg, so the SHA
         #     matches and we don't double the build cost.
         run: |
-          VERSIONED="Murmur-${{ steps.tag.outputs.name }}.dmg"
-          STABLE="Murmur.dmg"
+          VERSIONED="Murmuro-${{ steps.tag.outputs.name }}.dmg"
+          STABLE="Murmuro.dmg"
           STAGE="$(mktemp -d)"
-          cp -R dist/Murmur.app "$STAGE/"
+          cp -R dist/Murmuro.app "$STAGE/"
           ln -s /Applications "$STAGE/Applications"
           hdiutil create \
-            -volname "Murmur ${{ steps.tag.outputs.name }}" \
+            -volname "Murmuro ${{ steps.tag.outputs.name }}" \
             -srcfolder "$STAGE" \
             -ov \
             -format UDZO \
@@ -115,7 +115,7 @@ jobs:
       - name: Upload dmg as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Murmur-${{ steps.tag.outputs.name }}-dmg
+          name: Murmuro-${{ steps.tag.outputs.name }}-dmg
           path: ${{ env.DMG_PATH }}
           if-no-files-found: error
 
@@ -123,7 +123,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
-          name: Murmur ${{ steps.tag.outputs.name }}
+          name: Murmuro ${{ steps.tag.outputs.name }}
           draft: true
           generate_release_notes: true
           fail_on_unmatched_files: true

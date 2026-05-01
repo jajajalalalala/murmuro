@@ -28,7 +28,7 @@ class State(str, Enum):
     TRANSCRIBING = "transcribing"
 
 
-class MurmurApp:
+class MurmuroApp:
     """Headless controller. UI layers (tray, CLI) subscribe via on_state_change."""
 
     def __init__(
@@ -174,10 +174,10 @@ class MurmurApp:
 
         Hotkey changes are NOT applied in-process. Two attempts to
         hot-reload the pynput listener (PR #47 stop+start, PR #49
-        in-place rebind) both failed in the trusted ``Murmur.app``: the
+        in-place rebind) both failed in the trusted ``Murmuro.app``: the
         old listener kept firing the previous hotkey. Instead the host
-        UI surfaces an explicit "Restart Murmur to apply?" modal — see
-        :meth:`murmur.main_window.MainWindow._prompt_restart_for_hotkey`.
+        UI surfaces an explicit "Restart Murmuro to apply?" modal — see
+        :meth:`murmuro.main_window.MainWindow._prompt_restart_for_hotkey`.
         """
         old_cfg = self.cfg
         self.cfg = cfg

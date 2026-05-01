@@ -1,4 +1,4 @@
-"""Murmur entrypoint.
+"""Murmuro entrypoint.
 
 Default: launches the menu-bar tray app with global push-to-talk hotkey.
 With --cli: drops to interactive Enter-to-record CLI loop (useful on
@@ -22,7 +22,7 @@ from .transcribe import build as build_transcriber
 def _cli_loop(cfg: config_mod.Config) -> int:
     transcriber = build_transcriber(cfg)
     recorder = Recorder()
-    print(f"Murmur v{__version__} — backend: {cfg.backend}, language: {cfg.language}")
+    print(f"Murmuro v{__version__} — backend: {cfg.backend}, language: {cfg.language}")
     print("CLI mode. Press Enter to start recording, Enter again to stop. Ctrl-C to quit.\n")
     while True:
         try:
@@ -69,8 +69,8 @@ def _gui() -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="murmur", description="Press a key, speak, get text.")
-    parser.add_argument("--version", action="version", version=f"murmur {__version__}")
+    parser = argparse.ArgumentParser(prog="murmuro", description="Press a key, speak, get text.")
+    parser.add_argument("--version", action="version", version=f"murmuro {__version__}")
     parser.add_argument("--cli", action="store_true", help="Run in terminal CLI mode (no tray).")
     parser.add_argument(
         "--backend",
@@ -96,7 +96,7 @@ def main() -> int:
         help="With --uninstall: print what would be removed without removing it.",
     )
     parser.add_argument(
-        "--debug", action="store_true", help="Verbose logging (also via MURMUR_DEBUG=1)."
+        "--debug", action="store_true", help="Verbose logging (also via MURMURO_DEBUG=1)."
     )
     args = parser.parse_args()
 
@@ -106,10 +106,10 @@ def main() -> int:
         from .uninstall import run as run_uninstall
         return run_uninstall(assume_yes=args.yes, dry_run=args.dry_run)
 
-    debug = args.debug or os.environ.get("MURMUR_DEBUG") == "1"
+    debug = args.debug or os.environ.get("MURMURO_DEBUG") == "1"
     log_file = setup_logging(debug=debug)
     log = get_logger("main")
-    log.info("Murmur v%s starting (pid=%d, debug=%s)", __version__, os.getpid(), debug)
+    log.info("Murmuro v%s starting (pid=%d, debug=%s)", __version__, os.getpid(), debug)
     log.info("Log file: %s", log_file)
 
     cfg = config_mod.load()
@@ -152,14 +152,14 @@ def _warn_if_input_monitoring_denied() -> None:
     log.info("Accessibility status: %s (needed for auto-paste)", ax.value)
     if status == InputMonitoringStatus.DENIED:
         print(
-            "\n[murmur] macOS Input Monitoring is DENIED for this binary.\n"
+            "\n[murmuro] macOS Input Monitoring is DENIED for this binary.\n"
             "         The hotkey will not work until you enable it in:\n"
             "         System Settings → Privacy & Security → Input Monitoring\n",
             file=sys.stderr,
         )
     if ax == AccessibilityStatus.DENIED:
         print(
-            "\n[murmur] macOS Accessibility is not granted for this binary.\n"
+            "\n[murmuro] macOS Accessibility is not granted for this binary.\n"
             "         Auto-paste at cursor (⌘V) will fall back to clipboard-only.\n"
             "         Enable in: System Settings → Privacy & Security → Accessibility\n",
             file=sys.stderr,

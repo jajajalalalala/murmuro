@@ -1,9 +1,9 @@
 """Main window: pages render, edits round-trip into Config + persist.
 
-Hotkey changes surface an explicit "Restart Murmur to apply?" modal —
+Hotkey changes surface an explicit "Restart Murmuro to apply?" modal —
 Cancel is the default button so a stray Enter doesn't auto-fire the
 relaunch (#38). Other axes (toggles, model/provider) hot-reload via
-``MurmurApp.reload_config`` without a relaunch.
+``MurmuroApp.reload_config`` without a relaunch.
 """
 from __future__ import annotations
 
@@ -19,9 +19,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from murmur import config as config_mod  # noqa: E402
-from murmur.app import State  # noqa: E402
-from murmur.main_window import MainWindow  # noqa: E402
+from murmuro import config as config_mod  # noqa: E402
+from murmuro.app import State  # noqa: E402
+from murmuro.main_window import MainWindow  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -236,7 +236,7 @@ def test_unrelated_change_does_not_prompt_restart(qapp):
 
 
 def test_model_change_alone_does_not_prompt_restart(qapp):
-    """Local-model swaps ride MurmurApp.reload_config in-process (#46) —
+    """Local-model swaps ride MurmuroApp.reload_config in-process (#46) —
     no restart needed, no modal."""
     saved: list[config_mod.Config] = []
     win = MainWindow(
@@ -322,7 +322,7 @@ def test_confirm_modal_default_button_is_cancel(qapp):
     win = MainWindow(_make_cfg(), save_config=lambda _c: None)
 
     fake_box = _FakeMessageBox(click_text="Cancel")
-    with patch("murmur.main_window.QMessageBox", return_value=fake_box):
+    with patch("murmuro.main_window.QMessageBox", return_value=fake_box):
         confirmed = win._confirm_hotkey_restart()
 
     assert confirmed is False
@@ -333,7 +333,7 @@ def test_confirm_modal_returns_true_on_restart_click(qapp):
     win = MainWindow(_make_cfg(), save_config=lambda _c: None)
 
     fake_box = _FakeMessageBox(click_text="Restart now")
-    with patch("murmur.main_window.QMessageBox", return_value=fake_box):
+    with patch("murmuro.main_window.QMessageBox", return_value=fake_box):
         confirmed = win._confirm_hotkey_restart()
 
     assert confirmed is True

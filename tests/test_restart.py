@@ -10,7 +10,7 @@ Two strategies live in the same function:
 - macOS ``.app`` bundles use ``open -na <bundle>`` because ``os.execv``
   keeps the parent's Process Serial Number and LaunchServices silently
   refuses to register the relaunched instance.
-- Dev mode (``python -m murmur``) and any non-darwin platform fall back
+- Dev mode (``python -m murmuro``) and any non-darwin platform fall back
   to ``os.execv``.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from __future__ import annotations
 import sys
 from unittest.mock import patch
 
-from murmur.restart import _default_relaunch, _find_app_bundle_root
+from murmuro.restart import _default_relaunch, _find_app_bundle_root
 
 # --- _find_app_bundle_root -----------------------------------------------
 
@@ -29,9 +29,9 @@ def test_find_bundle_returns_none_off_darwin():
 
 
 def test_find_bundle_walks_up_to_dot_app(tmp_path):
-    # Lay out a fake bundle: <tmp>/Murmur.app/Contents/MacOS/Murmur
-    bundle = tmp_path / "Murmur.app"
-    binary = bundle / "Contents" / "MacOS" / "Murmur"
+    # Lay out a fake bundle: <tmp>/Murmuro.app/Contents/MacOS/Murmuro
+    bundle = tmp_path / "Murmuro.app"
+    binary = bundle / "Contents" / "MacOS" / "Murmuro"
     binary.parent.mkdir(parents=True)
     binary.write_text("#!/bin/sh\n")
     with (
@@ -62,17 +62,17 @@ def test_default_relaunch_uses_open_for_dot_app_bundle(tmp_path):
     instance. ``open -na`` gets us a fresh PSN."""
     import pytest
 
-    bundle = str(tmp_path / "Murmur.app")
+    bundle = str(tmp_path / "Murmuro.app")
     # In production sys.exit raises SystemExit and the function never
     # reaches os.execv. Mirror that by giving the patched exit the same
     # raising behaviour, otherwise control falls through and os.execv
     # runs anyway.
     with (
-        patch("murmur.restart._find_app_bundle_root", return_value=bundle),
-        patch("murmur.restart.subprocess.Popen") as popen_mock,
-        patch("murmur.restart.sys.exit", side_effect=SystemExit) as exit_mock,
-        patch("murmur.restart.os.execv") as execv_mock,
-        patch("murmur.restart.QApplication.instance", return_value=None),
+        patch("murmuro.restart._find_app_bundle_root", return_value=bundle),
+        patch("murmuro.restart.subprocess.Popen") as popen_mock,
+        patch("murmuro.restart.sys.exit", side_effect=SystemExit) as exit_mock,
+        patch("murmuro.restart.os.execv") as execv_mock,
+        patch("murmuro.restart.QApplication.instance", return_value=None),
         pytest.raises(SystemExit),
     ):
         _default_relaunch()
@@ -83,13 +83,13 @@ def test_default_relaunch_uses_open_for_dot_app_bundle(tmp_path):
 
 
 def test_default_relaunch_falls_back_to_execv_outside_a_bundle():
-    """Dev mode (`python -m murmur`) has no .app ancestor — replace the
+    """Dev mode (`python -m murmuro`) has no .app ancestor — replace the
     process image directly."""
     with (
-        patch("murmur.restart._find_app_bundle_root", return_value=None),
-        patch("murmur.restart.os.execv") as execv_mock,
-        patch("murmur.restart.subprocess.Popen") as popen_mock,
-        patch("murmur.restart.QApplication.instance", return_value=None),
+        patch("murmuro.restart._find_app_bundle_root", return_value=None),
+        patch("murmuro.restart.os.execv") as execv_mock,
+        patch("murmuro.restart.subprocess.Popen") as popen_mock,
+        patch("murmuro.restart.QApplication.instance", return_value=None),
     ):
         _default_relaunch()
 
@@ -106,9 +106,9 @@ def test_default_relaunch_quits_qapplication_first_when_present():
     fake_app.quit = lambda self=fake_app: setattr(fake_app, "quit_called", True)
 
     with (
-        patch("murmur.restart._find_app_bundle_root", return_value=None),
-        patch("murmur.restart.os.execv"),
-        patch("murmur.restart.QApplication.instance", return_value=fake_app),
+        patch("murmuro.restart._find_app_bundle_root", return_value=None),
+        patch("murmuro.restart.os.execv"),
+        patch("murmuro.restart.QApplication.instance", return_value=fake_app),
     ):
         _default_relaunch()
 

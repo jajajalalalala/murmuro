@@ -7,7 +7,7 @@ auto-repeats, which apps like Terminal and Electron-based editors silently
 drop for shortcut chords — so the first paste of a session lands but every
 subsequent one disappears with no error.
 
-We drive MurmurApp directly (no real microphone, no real Whisper), stub the
+We drive MurmuroApp directly (no real microphone, no real Whisper), stub the
 CoreGraphics ctypes bridge, and assert the same paste sequence is posted on
 every cycle.
 """
@@ -18,11 +18,11 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from murmur import inject
-from murmur.app import MurmurApp, State
-from murmur.audio import SAMPLE_RATE
-from murmur.config import Config
-from murmur.permissions import AccessibilityStatus
+from murmuro import inject
+from murmuro.app import MurmuroApp, State
+from murmuro.audio import SAMPLE_RATE
+from murmuro.config import Config
+from murmuro.permissions import AccessibilityStatus
 
 
 def _one_second_of_audio() -> np.ndarray:
@@ -37,7 +37,7 @@ def _fake_cg_libs():
     return cg, cf
 
 
-def _drive_one_cycle(app: MurmurApp, transcript: str) -> None:
+def _drive_one_cycle(app: MurmuroApp, transcript: str) -> None:
     """Simulate hotkey-down, hotkey-up, wait for transcription thread."""
     transcribe_done = threading.Event()
     real_set_state = app._set_state
@@ -72,16 +72,16 @@ def test_three_consecutive_pastes_each_post_full_cmd_v_event():
     fake_recorder.stop.return_value = _one_second_of_audio()
 
     with (
-        patch("murmur.app.Recorder", return_value=fake_recorder),
+        patch("murmuro.app.Recorder", return_value=fake_recorder),
         patch.object(inject.pyperclip, "copy"),
         patch.object(inject.platform, "system", return_value="Darwin"),
         patch(
-            "murmur.permissions.accessibility_status",
+            "murmuro.permissions.accessibility_status",
             return_value=AccessibilityStatus.GRANTED,
         ),
         patch.object(inject.ctypes, "CDLL", side_effect=fake_cdll),
     ):
-        app = MurmurApp(cfg=cfg)
+        app = MurmuroApp(cfg=cfg)
         for transcript in ("first", "second", "third"):
             _drive_one_cycle(app, transcript)
 
@@ -125,16 +125,16 @@ def test_paste_skipped_entirely_when_accessibility_denied():
     fake_recorder.stop.return_value = _one_second_of_audio()
 
     with (
-        patch("murmur.app.Recorder", return_value=fake_recorder),
+        patch("murmuro.app.Recorder", return_value=fake_recorder),
         patch.object(inject.pyperclip, "copy") as copy,
         patch.object(inject.platform, "system", return_value="Darwin"),
         patch(
-            "murmur.permissions.accessibility_status",
+            "murmuro.permissions.accessibility_status",
             return_value=AccessibilityStatus.DENIED,
         ),
         patch.object(inject.ctypes, "CDLL") as cdll,
     ):
-        app = MurmurApp(cfg=cfg)
+        app = MurmuroApp(cfg=cfg)
         _drive_one_cycle(app, "no permission")
 
     copy.assert_called_once_with("no permission")
@@ -149,12 +149,12 @@ def test_clipboard_only_mode_never_posts_cg_events():
     fake_recorder.stop.return_value = _one_second_of_audio()
 
     with (
-        patch("murmur.app.Recorder", return_value=fake_recorder),
+        patch("murmuro.app.Recorder", return_value=fake_recorder),
         patch.object(inject.pyperclip, "copy") as copy,
         patch.object(inject.platform, "system", return_value="Darwin"),
         patch.object(inject.ctypes, "CDLL") as cdll,
     ):
-        app = MurmurApp(cfg=cfg)
+        app = MurmuroApp(cfg=cfg)
         _drive_one_cycle(app, "clipboard only")
 
     copy.assert_called_once_with("clipboard only")
@@ -179,11 +179,11 @@ def test_paste_request_callback_routes_through_host_ui_thread():
         received.append(text)
 
     with (
-        patch("murmur.app.Recorder", return_value=fake_recorder),
-        patch("murmur.app.paste_at_cursor") as direct_paste,
+        patch("murmuro.app.Recorder", return_value=fake_recorder),
+        patch("murmuro.app.paste_at_cursor") as direct_paste,
         patch.object(inject.pyperclip, "copy"),
     ):
-        app = MurmurApp(cfg=cfg, on_paste_request=host_paste)
+        app = MurmuroApp(cfg=cfg, on_paste_request=host_paste)
         _drive_one_cycle(app, "from worker")
 
     assert received == ["from worker"]
@@ -198,16 +198,16 @@ def test_empty_transcript_skips_paste():
     fake_recorder.stop.return_value = _one_second_of_audio()
 
     with (
-        patch("murmur.app.Recorder", return_value=fake_recorder),
+        patch("murmuro.app.Recorder", return_value=fake_recorder),
         patch.object(inject.pyperclip, "copy") as copy,
         patch.object(inject.platform, "system", return_value="Darwin"),
         patch(
-            "murmur.permissions.accessibility_status",
+            "murmuro.permissions.accessibility_status",
             return_value=AccessibilityStatus.GRANTED,
         ),
         patch.object(inject.ctypes, "CDLL") as cdll,
     ):
-        app = MurmurApp(cfg=cfg)
+        app = MurmuroApp(cfg=cfg)
         _drive_one_cycle(app, "")
 
     copy.assert_not_called()

@@ -8,18 +8,18 @@ from platformdirs import user_data_dir
 from .. import config as cfg_mod
 from .base import Transcriber
 
-# Subdirectory under ``platformdirs.user_data_dir("Murmur")`` where
+# Subdirectory under ``platformdirs.user_data_dir("Murmuro")`` where
 # faster-whisper writes downloaded models. Kept as a module-level
 # constant so tests and uninstall.py can reference the same value.
 _MODELS_SUBDIR = "models"
 
 
 def default_local_download_root() -> Path:
-    """Murmur's private model store path (no I/O).
+    """Murmuro's private model store path (no I/O).
 
-    macOS:   ~/Library/Application Support/Murmur/models
-    Windows: %LOCALAPPDATA%\\Murmur\\models
-    Linux:   ~/.local/share/Murmur/models
+    macOS:   ~/Library/Application Support/Murmuro/models
+    Windows: %LOCALAPPDATA%\\Murmuro\\models
+    Linux:   ~/.local/share/Murmuro/models
 
     The directory is *not* created here — callers that actually need it
     (factory.build, uninstall) call ``_resolve_local_download_root``
@@ -33,7 +33,7 @@ def _resolve_local_download_root(cfg: cfg_mod.Config) -> str:
 
     Empty-string config (the default) maps to the platformdirs path so
     we don't have to migrate existing TOML files when this lands. Any
-    non-empty value is honored verbatim — power users can point Murmur
+    non-empty value is honored verbatim — power users can point Murmuro
     at an external drive or a shared location.
 
     The returned path is guaranteed to exist (mkdir parents/exist_ok).
@@ -51,7 +51,7 @@ def build(cfg: cfg_mod.Config) -> Transcriber:
             # message instead of letting faster-whisper crash with an opaque
             # path-resolution error.
             raise RuntimeError(
-                "No local model selected. Open Murmur → Models and pick "
+                "No local model selected. Open Murmuro → Models and pick "
                 "one (Tiny is fastest, Base is the recommended default)."
             )
         from .local import LocalWhisper
@@ -86,7 +86,7 @@ def build(cfg: cfg_mod.Config) -> Transcriber:
             )
 
         # Prefer the keychain entry written by the Models page; fall back
-        # to the configured env var name for users who set up Murmur
+        # to the configured env var name for users who set up Murmuro
         # before keychain storage existed (or who use direnv / 1Password
         # CLI). See `docs/adr/0001-api-key-storage.md`.
         env_var = (

@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtGui import QFocusEvent, QKeyEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from murmur.hotkey_recorder import (  # noqa: E402
+from murmuro.hotkey_recorder import (  # noqa: E402
     CAPTURE_PLACEHOLDER,
     HotkeyRecorder,
     humanize,
@@ -381,7 +381,7 @@ def _install_fake_appkit(monkeypatch) -> _FakeAppKit:
         NSEventMaskFlagsChanged=fake.NSEventMaskFlagsChanged,
     )
     monkeypatch.setitem(sys.modules, "AppKit", fake_module)
-    monkeypatch.setattr("murmur.fn_monitor.sys.platform", "darwin")
+    monkeypatch.setattr("murmuro.fn_monitor.sys.platform", "darwin")
     return fake
 
 
@@ -443,7 +443,7 @@ def test_fn_monitor_noop_off_macos(monkeypatch, qapp):
     """On non-darwin platforms the monitor must not attempt to import
     AppKit; entering and leaving capture mode should still be safe and
     the recorder should otherwise behave normally."""
-    monkeypatch.setattr("murmur.fn_monitor.sys.platform", "linux")
+    monkeypatch.setattr("murmuro.fn_monitor.sys.platform", "linux")
     rec = HotkeyRecorder("<f9>")
     _focus_in(rec)
     # Existing modifier-only path still works exactly as before.

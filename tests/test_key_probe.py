@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtGui import QKeyEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from murmur.key_probe import KeyProbe  # noqa: E402
+from murmuro.key_probe import KeyProbe  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -150,7 +150,7 @@ def _install_fake_appkit(monkeypatch) -> _FakeAppKit:
             NSEventMaskFlagsChanged=fake.NSEventMaskFlagsChanged,
         ),
     )
-    monkeypatch.setattr("murmur.fn_monitor.sys.platform", "darwin")
+    monkeypatch.setattr("murmuro.fn_monitor.sys.platform", "darwin")
     return fake
 
 

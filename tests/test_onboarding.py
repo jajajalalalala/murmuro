@@ -19,8 +19,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from murmur import config as config_mod  # noqa: E402
-from murmur.onboarding import OnboardingWizard  # noqa: E402
+from murmuro import config as config_mod  # noqa: E402
+from murmuro.onboarding import OnboardingWizard  # noqa: E402
 
 
 @pytest.fixture(scope="module")

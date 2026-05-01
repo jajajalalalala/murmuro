@@ -8,7 +8,7 @@ import tomli_w
 import tomllib
 from platformdirs import user_config_dir
 
-APP_NAME = "Murmur"
+APP_NAME = "Murmuro"
 
 
 @dataclass
@@ -41,10 +41,10 @@ class CustomCloudProvider:
 
     Persisted under ``[[custom_cloud]]`` in ``config.toml``. The API key
     is **never** stored here — it lives in the OS keychain under
-    ``provider_id``. See ADR-0001 and ``murmur.secrets``.
+    ``provider_id``. See ADR-0001 and ``murmuro.secrets``.
 
     ``api_key_env`` defaults to ``<PROVIDER_ID>_API_KEY`` (matching
-    ``murmur.secrets``'s default rule), but can be overridden so users
+    ``murmuro.secrets``'s default rule), but can be overridden so users
     with a non-conforming env var name (e.g. someone who already exports
     ``MINIMAX_TOKEN``) can keep using it.
     """
@@ -98,7 +98,7 @@ class Config:
     # see ``onboarded=False`` on first read; we treat ``backend !=
     # ""`` (i.e. they already have a working setup) as implicit
     # onboarded so we don't re-onboard people who've been running
-    # Murmur for months — see ``load`` for the migration.
+    # Murmuro for months — see ``load`` for the migration.
     onboarded: bool = False
     local: LocalBackendConfig = field(default_factory=LocalBackendConfig)
     openai: OpenAIBackendConfig = field(default_factory=OpenAIBackendConfig)
@@ -138,7 +138,7 @@ def load() -> Config:
         dark_mode=data.get("dark_mode", False),
         input_device=data.get("input_device", ""),
         # Migration: a config.toml that pre-dates the onboarded flag
-        # belongs to a user who's been running Murmur for a while —
+        # belongs to a user who's been running Murmuro for a while —
         # don't fire the wizard at them. We treat the presence of any
         # explicit ``local.model`` (i.e. they actually picked a model)
         # as proof they've completed the equivalent of onboarding.

@@ -1,8 +1,8 @@
 # AGENTS.md — Handover guide for AI coding agents
 
-> If you are an AI agent (Claude, GPT, Cursor, Copilot, etc.) working on Murmur, **read this file first**. It tells you how to pick up where the previous session left off and how to ship changes that the maintainer will accept without rework.
+> If you are an AI agent (Claude, GPT, Cursor, Copilot, etc.) working on Murmuro, **read this file first**. It tells you how to pick up where the previous session left off and how to ship changes that the maintainer will accept without rework.
 
-## What Murmur is
+## What Murmuro is
 
 A minimal, local-first push-to-talk dictation tool for macOS and Windows. One job: hold a hotkey → speak → text appears.
 

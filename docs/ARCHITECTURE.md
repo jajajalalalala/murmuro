@@ -75,8 +75,8 @@ Adding a new backend = one file implementing this Protocol + one entry in the `p
 ## Config schema
 
 ```toml
-# ~/Library/Application Support/Murmur/config.toml  (mac)
-# %APPDATA%\Murmur\config.toml                       (windows)
+# ~/Library/Application Support/Murmuro/config.toml  (mac)
+# %APPDATA%\Murmuro\config.toml                       (windows)
 
 # Active provider id, looked up in providers.py. ``"local"`` runs
 # faster-whisper on-device; any other id (``"openai"``, ``"groq"``,

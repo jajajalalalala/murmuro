@@ -12,8 +12,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from murmur import config as config_mod  # noqa: E402
-from murmur.pages.models import ModelsPage  # noqa: E402
+from murmuro import config as config_mod  # noqa: E402
+from murmuro.pages.models import ModelsPage  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -84,7 +84,7 @@ def test_switching_to_cloud_reveals_cloud_panel(qapp):
 
 def test_dir_size_bytes_sums_files_recursively(tmp_path):
     """The cache-size estimator walks all files under a directory."""
-    from murmur.pages.models import _dir_size_bytes
+    from murmuro.pages.models import _dir_size_bytes
     (tmp_path / "a.bin").write_bytes(b"x" * 1024)
     sub = tmp_path / "snapshots"
     sub.mkdir()
@@ -93,7 +93,7 @@ def test_dir_size_bytes_sums_files_recursively(tmp_path):
 
 
 def test_dir_size_bytes_handles_missing_dir(tmp_path):
-    from murmur.pages.models import _dir_size_bytes
+    from murmuro.pages.models import _dir_size_bytes
     assert _dir_size_bytes(tmp_path / "does-not-exist") == 0
 
 
@@ -132,7 +132,7 @@ def test_set_downloading_false_resets_bar(qapp):
 def test_poll_progress_updates_row_from_cache_size(qapp, monkeypatch):
     """End-to-end: a fake in-flight worker + a stubbed cache-size reader
     feeds the row's progress bar via _poll_progress."""
-    from murmur.pages import models as models_mod
+    from murmuro.pages import models as models_mod
 
     page = ModelsPage(_cfg())
     panel = page._local_panel
@@ -149,7 +149,7 @@ def test_poll_progress_updates_row_from_cache_size(qapp, monkeypatch):
 # ---- Delete button --------------------------------------------------------
 
 def _seed_fake_cache(monkeypatch, tmp_path, model_id: str):
-    """Point Murmur's private model store at tmp_path and seed ``model_id``.
+    """Point Murmuro's private model store at tmp_path and seed ``model_id``.
 
     Mirrors what faster-whisper writes after a real download so
     ``LocalModel.is_downloaded(download_root)`` returns True. Pins the
@@ -157,7 +157,7 @@ def _seed_fake_cache(monkeypatch, tmp_path, model_id: str):
     panel resolves there during construction.
     """
     monkeypatch.setattr(
-        "murmur.transcribe.factory.default_local_download_root",
+        "murmuro.transcribe.factory.default_local_download_root",
         lambda: tmp_path,
     )
     cache_dir = tmp_path / f"models--Systran--faster-whisper-{model_id}"
@@ -169,7 +169,7 @@ def _seed_fake_cache(monkeypatch, tmp_path, model_id: str):
 def test_delete_button_hidden_when_not_downloaded(qapp, monkeypatch, tmp_path):
     """Fresh model with no cache → only Download is visible."""
     monkeypatch.setattr(
-        "murmur.transcribe.factory.default_local_download_root",
+        "murmuro.transcribe.factory.default_local_download_root",
         lambda: tmp_path,
     )
     page = ModelsPage(_cfg(model="base"))
@@ -210,7 +210,7 @@ def test_delete_button_enabled_for_downloaded_inactive_model(
 
 def test_delete_removes_cache_directory(qapp, monkeypatch, tmp_path):
     """End-to-end: Delete click → confirm → rmtree → row flips back to Download."""
-    from murmur.pages import models as models_mod
+    from murmuro.pages import models as models_mod
 
     cache_dir = _seed_fake_cache(monkeypatch, tmp_path, "small")
     monkeypatch.setattr(models_mod, "_confirm_delete", lambda *_a, **_k: True)
@@ -231,7 +231,7 @@ def test_delete_removes_cache_directory(qapp, monkeypatch, tmp_path):
 
 def test_delete_cancelled_keeps_files(qapp, monkeypatch, tmp_path):
     """If the user clicks Cancel, the cache stays intact."""
-    from murmur.pages import models as models_mod
+    from murmuro.pages import models as models_mod
 
     cache_dir = _seed_fake_cache(monkeypatch, tmp_path, "small")
     monkeypatch.setattr(models_mod, "_confirm_delete", lambda *_a, **_k: False)
@@ -250,7 +250,7 @@ def test_delete_refuses_active_model_even_if_called_directly(
     refactor that wires this slot from elsewhere to silently nuke the
     model the user is currently transcribing through.
     """
-    from murmur.pages import models as models_mod
+    from murmuro.pages import models as models_mod
 
     cache_dir = _seed_fake_cache(monkeypatch, tmp_path, "base")
     confirmed = []
@@ -268,7 +268,7 @@ def test_delete_refuses_active_model_even_if_called_directly(
 
 def test_delete_model_files_handles_missing_dir(tmp_path):
     """Helper is a no-op if the path doesn't exist (defensive)."""
-    from murmur.pages.models import _delete_model_files
+    from murmuro.pages.models import _delete_model_files
     _delete_model_files(tmp_path / "nope")  # must not raise
 
 
@@ -279,7 +279,7 @@ def test_fresh_install_marks_no_row_active(qapp, monkeypatch, tmp_path):
     active and the Models page lists every shipped model with its real
     Download/Use state."""
     monkeypatch.setattr(
-        "murmur.transcribe.factory.default_local_download_root",
+        "murmuro.transcribe.factory.default_local_download_root",
         lambda: tmp_path,
     )
     page = ModelsPage(_cfg(model=""))
@@ -291,7 +291,7 @@ def test_fresh_install_marks_no_row_active(qapp, monkeypatch, tmp_path):
 def test_fresh_install_does_not_render_phantom_custom_row(qapp, monkeypatch, tmp_path):
     """Empty model must not produce a '(custom)' row labelled with ''."""
     monkeypatch.setattr(
-        "murmur.transcribe.factory.default_local_download_root",
+        "murmuro.transcribe.factory.default_local_download_root",
         lambda: tmp_path,
     )
     page = ModelsPage(_cfg(model=""))

@@ -13,8 +13,8 @@ import types
 
 import pytest
 
-from murmur import config as config_mod
-from murmur import providers
+from murmuro import config as config_mod
+from murmuro import providers
 
 # ---- Fakes -------------------------------------------------------------------
 
@@ -186,11 +186,11 @@ def test_unregister_removes_from_registry_and_config(isolated_cfg, fake_keyring)
 
 
 def test_unregister_calls_secrets_delete(isolated_cfg, fake_keyring):
-    fake_keyring.store[("murmur", "my-minimax")] = "sk-stored"
+    fake_keyring.store[("murmuro", "my-minimax")] = "sk-stored"
     providers.register(_custom_provider("my-minimax"))
     providers.unregister("my-minimax")
     assert "my-minimax" in fake_keyring.delete_calls
-    assert ("murmur", "my-minimax") not in fake_keyring.store
+    assert ("murmuro", "my-minimax") not in fake_keyring.store
 
 
 def test_unregister_swallows_keychain_errors(isolated_cfg, fake_keyring):
@@ -295,7 +295,7 @@ def test_api_key_never_persists_to_toml(tmp_path, monkeypatch, fake_keyring):
     providers.reload_from_config(cfg)
     # Register a custom provider and write a key to the (fake) keychain
     # the way the Models page would.
-    from murmur import secrets
+    from murmuro import secrets
 
     providers.register(_custom_provider("leaky"))
     secrets.set("leaky", "sk-very-secret")

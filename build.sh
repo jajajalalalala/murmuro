@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build a standalone Murmur.app bundle for macOS.
+# Build a standalone Murmuro.app bundle for macOS.
 #
-# Output: dist/Murmur.app  (drag-into-Applications style bundle)
+# Output: dist/Murmuro.app  (drag-into-Applications style bundle)
 #
 # Usage:
 #   ./build.sh              # full build
@@ -58,27 +58,27 @@ fi
 # 4. Run PyInstaller via the venv's pyinstaller.
 #
 # We point PyInstaller at tools/pyi_launcher.py rather than
-# src/murmur/__main__.py — otherwise PyInstaller treats __main__.py as a
+# src/murmuro/__main__.py — otherwise PyInstaller treats __main__.py as a
 # top-level script and the package's relative imports blow up at runtime
 # with "attempted relative import with no known parent package". The
-# launcher does the right thing: import murmur.__main__:main and dispatch.
+# launcher does the right thing: import murmuro.__main__:main and dispatch.
 echo "[build.sh] running PyInstaller..."
 .venv/bin/pyinstaller \
     --noconfirm \
     --windowed \
-    --name "Murmur" \
+    --name "Murmuro" \
     --icon "assets/icon.icns" \
-    --osx-bundle-identifier "com.bonian.murmur" \
+    --osx-bundle-identifier "com.bonian.murmuro" \
     --paths "src" \
     --add-data "assets:assets" \
-    --collect-submodules "murmur" \
+    --collect-submodules "murmuro" \
     --collect-submodules "faster_whisper" \
     --collect-data "faster_whisper" \
     --hidden-import "pynput.keyboard._darwin" \
     --hidden-import "pynput.mouse._darwin" \
     tools/pyi_launcher.py
 
-APP="dist/Murmur.app"
+APP="dist/Murmuro.app"
 PLIST="$APP/Contents/Info.plist"
 
 if [[ ! -d "$APP" ]]; then
@@ -95,17 +95,17 @@ fi
 echo "[build.sh] patching Info.plist..."
 /usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" "$PLIST" 2>/dev/null \
     || /usr/libexec/PlistBuddy -c "Set :LSUIElement true" "$PLIST"
-/usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Murmur needs microphone access to transcribe what you say into text.'" "$PLIST" 2>/dev/null \
-    || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Murmur needs microphone access to transcribe what you say into text.'" "$PLIST"
-/usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'Murmur uses Apple Events to paste transcribed text into the focused app.'" "$PLIST" 2>/dev/null \
-    || /usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription 'Murmur uses Apple Events to paste transcribed text into the focused app.'" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Murmuro needs microphone access to transcribe what you say into text.'" "$PLIST" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Murmuro needs microphone access to transcribe what you say into text.'" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'Murmuro uses Apple Events to paste transcribed text into the focused app.'" "$PLIST" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription 'Murmuro uses Apple Events to paste transcribed text into the focused app.'" "$PLIST"
 
 # 6. Ad-hoc sign so Gatekeeper accepts it on the dev machine. Real notarization
 #    is a v1.0 task.
 echo "[build.sh] ad-hoc signing..."
 codesign --force --deep --sign - "$APP" >/dev/null
 
-# 7. Wipe macOS TCC permission entries for ``com.bonian.murmur``.
+# 7. Wipe macOS TCC permission entries for ``com.bonian.murmuro``.
 #
 #    Each ad-hoc-signed rebuild has a different code-sign hash, so
 #    macOS treats each build as a distinct app for permission
@@ -113,7 +113,7 @@ codesign --force --deep --sign - "$APP" >/dev/null
 #    entries in System Settings → Privacy & Security → Input
 #    Monitoring / Accessibility, all toggled ON, none belonging to
 #    the *currently-running* binary — the running app reads back
-#    "denied" despite three "Murmur" entries with green toggles.
+#    "denied" despite three "Murmuro" entries with green toggles.
 #
 #    Since each build effectively *is* a new identity, we own the
 #    cleanup: tccutil resets the bundle's TCC entries before the
@@ -124,8 +124,8 @@ codesign --force --deep --sign - "$APP" >/dev/null
 #    Errors are tolerated (|| true) — first build of a fresh
 #    install legitimately has no entries to reset, and tccutil
 #    returns non-zero in that case.
-echo "[build.sh] resetting TCC permission entries for com.bonian.murmur..."
-tccutil reset All com.bonian.murmur 2>/dev/null || true
+echo "[build.sh] resetting TCC permission entries for com.bonian.murmuro..."
+tccutil reset All com.bonian.murmuro 2>/dev/null || true
 
 # 8. Nudge Finder to drop its cached icon for this bundle. macOS keeps a
 #    per-bundle icon cache keyed by the bundle's mtime; touching the
@@ -137,11 +137,11 @@ touch "$APP"
 
 echo
 echo "[build.sh] build complete."
-echo "  open dist/Murmur.app"
-echo "  or drag dist/Murmur.app into /Applications"
+echo "  open dist/Murmuro.app"
+echo "  or drag dist/Murmuro.app into /Applications"
 echo
 echo "  Privacy & Security has been reset for this bundle — when you"
-echo "  first launch, drag Murmur.app into Input Monitoring (and"
+echo "  first launch, drag Murmuro.app into Input Monitoring (and"
 echo "  Accessibility for auto-paste) to grant permissions to the"
 echo "  fresh code identity. Real notarized signing in v1.0 will"
 echo "  remove this rebuild dance."

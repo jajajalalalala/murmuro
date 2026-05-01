@@ -1,10 +1,10 @@
-"""``murmur --uninstall`` removes config, logs, and the private model store.
+"""``murmuro --uninstall`` removes config, logs, and the private model store.
 
 The test redirects every path the uninstaller looks at into a tmp dir
-so the user's real ``~/Library/Application Support/Murmur`` is never
+so the user's real ``~/Library/Application Support/Murmuro`` is never
 at risk during CI or local pytest runs. The legacy HuggingFace cache
 (``~/.cache/huggingface/hub/``) is also pinned to a tmp location and
-asserted to be untouched — Murmur stopped managing it in #12 and the
+asserted to be untouched — Murmuro stopped managing it in #12 and the
 uninstall flow must respect that.
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
-from murmur import uninstall
+from murmuro import uninstall
 
 
 def _seed(tmp_path: Path, monkeypatch) -> dict[str, Path]:
@@ -21,14 +21,14 @@ def _seed(tmp_path: Path, monkeypatch) -> dict[str, Path]:
     config_dir = tmp_path / "config"
     log_dir = tmp_path / "logs"
     # New private model store under platformdirs.user_data_dir.
-    model_store = tmp_path / "data" / "Murmur" / "models"
+    model_store = tmp_path / "data" / "Murmuro" / "models"
     # Legacy HF cache — must NOT be touched by uninstall.
     hf_root = tmp_path / "hf"
 
     config_dir.mkdir()
     (config_dir / "config.toml").write_text("backend='local'\n")
     log_dir.mkdir()
-    (log_dir / "murmur.log").write_text("hello\n")
+    (log_dir / "murmuro.log").write_text("hello\n")
     model_store.mkdir(parents=True)
     (model_store / "models--Systran--faster-whisper-base").mkdir()
     (model_store / "models--Systran--faster-whisper-base" / "weights.bin").write_bytes(
@@ -39,10 +39,10 @@ def _seed(tmp_path: Path, monkeypatch) -> dict[str, Path]:
     legacy.mkdir()
     (legacy / "weights.bin").write_bytes(b"y" * 16)
 
-    from murmur import _logging as logmod
-    from murmur import config as cfgmod
+    from murmuro import _logging as logmod
+    from murmuro import config as cfgmod
     monkeypatch.setattr(cfgmod, "config_path", lambda: config_dir / "config.toml")
-    monkeypatch.setattr(logmod, "log_path", lambda: log_dir / "murmur.log")
+    monkeypatch.setattr(logmod, "log_path", lambda: log_dir / "murmuro.log")
     monkeypatch.setattr(uninstall, "_model_store_root", lambda: model_store)
     # Pin HOME so the printed legacy hint is correct and any accidental
     # rmtree against the real ~/.cache/huggingface is impossible.
@@ -136,14 +136,14 @@ def test_run_aborts_on_negative_confirmation(tmp_path, monkeypatch):
 
 def test_run_with_no_state_returns_zero(tmp_path, monkeypatch):
     """Running on a clean machine is a no-op success."""
-    from murmur import _logging as logmod
-    from murmur import config as cfgmod
+    from murmuro import _logging as logmod
+    from murmuro import config as cfgmod
     monkeypatch.setattr(cfgmod, "config_path", lambda: tmp_path / "missing/config.toml")
-    monkeypatch.setattr(logmod, "log_path", lambda: tmp_path / "missing/log/murmur.log")
+    monkeypatch.setattr(logmod, "log_path", lambda: tmp_path / "missing/log/murmuro.log")
     monkeypatch.setattr(
         uninstall, "_model_store_root", lambda: tmp_path / "missing/data",
     )
     out = io.StringIO()
     rc = uninstall.run(assume_yes=True, out=out)
     assert rc == 0
-    assert "no Murmur state" in out.getvalue()
+    assert "no Murmuro state" in out.getvalue()

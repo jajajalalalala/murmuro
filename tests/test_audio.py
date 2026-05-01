@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from murmur.audio import SAMPLE_RATE, Recorder
+from murmuro.audio import SAMPLE_RATE, Recorder
 
 
 def _chunk(amplitude: float, n: int = 480) -> np.ndarray:
@@ -103,7 +103,7 @@ def test_start_resets_level(monkeypatch):
         def close(self) -> None:
             pass
 
-    monkeypatch.setattr("murmur.audio.sd.InputStream", _FakeStream)
+    monkeypatch.setattr("murmuro.audio.sd.InputStream", _FakeStream)
     rec.start()
     assert rec.current_level == 0.0
     rec.stop()

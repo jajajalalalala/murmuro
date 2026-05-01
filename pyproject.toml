@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "murmur"
+name = "murmuro"
 version = "1.0.0"
 description = "Press a key, speak, get text. A minimal local-first dictation tool."
 readme = "README.md"
@@ -26,7 +26,7 @@ build = ["pyinstaller>=6.0", "Pillow>=10.0"]
 dev = ["pytest>=7", "ruff>=0.4"]
 
 [project.scripts]
-murmur = "murmur.__main__:main"
+murmuro = "murmuro.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

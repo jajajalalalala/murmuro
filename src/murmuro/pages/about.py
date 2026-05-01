@@ -3,7 +3,7 @@
 Read-only. Useful when something looks wrong and the user (or whoever
 they're asking for help) needs to find the log file or see what
 version is running. The "Open in Finder" / "Reveal" buttons let users
-get there without remembering ``~/Library/Logs/Murmur``.
+get there without remembering ``~/Library/Logs/Murmuro``.
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from ..ui.theme import (
     primary_button,
 )
 
-GITHUB_URL = "https://github.com/jajajalalalala/murmur"
+GITHUB_URL = "https://github.com/jajajalalalala/murmuro"
 
 
 class AboutPage(QWidget):
@@ -56,7 +56,7 @@ class AboutPage(QWidget):
         identity_layout = QVBoxLayout(identity)
         identity_layout.setContentsMargins(20, 18, 20, 18)
         identity_layout.setSpacing(6)
-        title = QLabel("Murmur")
+        title = QLabel("Murmuro")
         title.setStyleSheet("font-size: 22px; font-weight: 700;")
         identity_layout.addWidget(title)
         version = QLabel(f"Version {__version__}")
@@ -64,7 +64,7 @@ class AboutPage(QWidget):
         identity_layout.addWidget(version)
         blurb = QLabel(
             "Push-to-talk dictation for macOS. Hold your hotkey, speak, "
-            "release — Murmur transcribes locally with faster-whisper or "
+            "release — Murmuro transcribes locally with faster-whisper or "
             "via your chosen cloud provider, then drops the text at your "
             "cursor."
         )
@@ -131,7 +131,7 @@ class AboutPage(QWidget):
         layout.addLayout(links_row)
 
         layout.addWidget(hint_label(
-            "Murmur runs entirely on your machine when you pick the local "
+            "Murmuro runs entirely on your machine when you pick the local "
             "backend — audio never leaves the device unless you choose a "
             "cloud provider."
         ))

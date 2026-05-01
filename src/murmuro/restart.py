@@ -2,15 +2,15 @@
 
 Hotkey changes can't be safely hot-reloaded into the running pynput
 listener — see ``main_window`` and #38 for the full story. The user
-confirms the relaunch via a "Restart Murmur to apply?" modal; this
+confirms the relaunch via a "Restart Murmuro to apply?" modal; this
 module provides the actual relaunch. Kept separate so the main window
 can swap it out in tests.
 
 Why two relaunch strategies:
 
-- ``os.execv`` works in dev mode (``python -m murmur``) — replaces the
+- ``os.execv`` works in dev mode (``python -m murmuro``) — replaces the
   process image cleanly.
-- For a PyInstaller-built ``Murmur.app`` it does **not** work in
+- For a PyInstaller-built ``Murmuro.app`` it does **not** work in
   practice. macOS LaunchServices keeps the parent's Process Serial
   Number on the new process and silently refuses to register it as a
   foreground app, so the relaunch appears to do nothing. The fix is to
@@ -32,7 +32,7 @@ _log = get_logger("restart")
 def _find_app_bundle_root() -> str | None:
     """Walk up from ``sys.executable`` to find a ``.app`` ancestor.
 
-    Returns the bundle path (e.g. ``/Applications/Murmur.app``) or
+    Returns the bundle path (e.g. ``/Applications/Murmuro.app``) or
     ``None`` when not running from a bundle (dev mode, plain Python).
     """
     if sys.platform != "darwin":

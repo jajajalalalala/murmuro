@@ -8,12 +8,12 @@ closing this window only hides it (the app keeps running in the menu bar).
 Configuration is persisted whenever any page emits ``preferences_changed``:
 each page exposes ``apply_to_config(cfg)`` that mutates a Config draft, the
 window collects them, saves to disk, and notifies the host (tray) so the
-running ``MurmurApp`` can re-bind the model/provider in-process.
+running ``MurmuroApp`` can re-bind the model/provider in-process.
 
 Hotkey changes are the one axis we can't safely hot-reload (#38). Two
 attempts (PR #47 stop+start, PR #49 in-place rebind) both failed in the
-trusted ``Murmur.app`` for reasons that don't reproduce in offscreen
-tests. Instead we show an explicit "Restart Murmur to apply?" modal with
+trusted ``Murmuro.app`` for reasons that don't reproduce in offscreen
+tests. Instead we show an explicit "Restart Murmuro to apply?" modal with
 Cancel as the default button — so a stray Enter (from committing the new
 hotkey) doesn't auto-fire the restart.
 """
@@ -74,7 +74,7 @@ def _assets_dir() -> Path:
     """Return the directory containing bundled icon assets.
 
     Two cases:
-    - Dev / installed-via-pip: ``__file__`` lives in ``src/murmur/`` and
+    - Dev / installed-via-pip: ``__file__`` lives in ``src/murmuro/`` and
       assets is at the repo root (parents[2] = repo root).
     - PyInstaller bundle: ``sys._MEIPASS`` points at the runtime extract
       dir; ``--add-data assets:assets`` puts the assets directory there.
@@ -93,7 +93,7 @@ _WORDMARK_LIGHT_PATH = _assets_dir() / "wordmark_light.png"
 class MainWindow(QMainWindow):
     """Three-page main window: Home / Shortcuts / Models."""
 
-    config_saved = Signal(object)  # Config — host applies + reloads MurmurApp
+    config_saved = Signal(object)  # Config — host applies + reloads MurmuroApp
 
     def __init__(
         self,
@@ -110,9 +110,9 @@ class MainWindow(QMainWindow):
 
         # Title hidden — we hide the macOS title bar entirely via NSWindow
         # (see _configure_macos_titlebar) so content extends to the very
-        # top of the window. Traffic lights stay; the "Murmur" text bar
+        # top of the window. Traffic lights stay; the "Murmuro" text bar
         # the user flagged is gone.
-        self.setWindowTitle("Murmur")
+        self.setWindowTitle("Murmuro")
         # Bigger default — 760×520 felt cramped, especially the Models
         # page where a long list and the action buttons compete for the
         # same vertical space.
@@ -263,7 +263,7 @@ class MainWindow(QMainWindow):
         self._refresh_brand_glyph()
         layout.addWidget(self._brand_glyph)
 
-        wordmark = QLabel("Murmur")
+        wordmark = QLabel("Murmuro")
         wordmark.setObjectName("brandText")
         layout.addWidget(wordmark)
         layout.addStretch(1)
@@ -271,7 +271,7 @@ class MainWindow(QMainWindow):
         return header
 
     def _refresh_brand_glyph(self) -> None:
-        """Show the orange app icon next to the 'Murmur' wordmark.
+        """Show the orange app icon next to the 'Murmuro' wordmark.
 
         We tried a theme-aware monochrome silhouette here briefly; the
         maintainer prefers the colorful app icon as the rail mark for
@@ -335,7 +335,7 @@ class MainWindow(QMainWindow):
     def show_page(self, page: int) -> None:
         """Open the window on a specific page.
 
-        Used by the tray menu's deep-link items (Open Murmur… → Home,
+        Used by the tray menu's deep-link items (Open Murmuro… → Home,
         Edit hotkey… → Shortcuts, Microphone input… → Audio). Wraps
         the per-button selection helpers + ``show()`` so callers get a
         single clean entry point.
@@ -417,7 +417,7 @@ class MainWindow(QMainWindow):
         a foreign element:
 
         - ``setTitleVisibility:NSWindowTitleHidden`` hides the
-          ``"Murmur"`` text the user flagged.
+          ``"Murmuro"`` text the user flagged.
         - ``setTitlebarAppearsTransparent:YES`` removes the title-bar
           chrome line so it reads as one continuous strip with the
           window content.
@@ -462,7 +462,7 @@ class MainWindow(QMainWindow):
     # ----- Hooks called by the host ---------------------------------------
 
     def update_state(self, s: State) -> None:
-        """Forward a state change from MurmurApp to the Home page."""
+        """Forward a state change from MurmuroApp to the Home page."""
         self.home_page.set_state(s)
 
     def append_transcript(self, text: str) -> None:
@@ -514,7 +514,7 @@ class MainWindow(QMainWindow):
             return
         self._cfg = draft
         self.home_page.set_config(draft)  # refresh the summary line
-        # Model / provider changes ride MurmurApp.reload_config's selective
+        # Model / provider changes ride MurmuroApp.reload_config's selective
         # transcriber drop (#44, #46) — the next push-to-talk press picks
         # up the new config without a relaunch.
         self.config_saved.emit(draft)
@@ -538,10 +538,10 @@ class MainWindow(QMainWindow):
         """
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Question)
-        box.setWindowTitle("Restart Murmur?")
+        box.setWindowTitle("Restart Murmuro?")
         box.setText("Apply the new hotkey?")
         box.setInformativeText(
-            "Murmur needs to restart for the new hotkey to take effect.\n\n"
+            "Murmuro needs to restart for the new hotkey to take effect.\n\n"
             "Choose Cancel to keep using your previous hotkey — your "
             "change will be discarded."
         )

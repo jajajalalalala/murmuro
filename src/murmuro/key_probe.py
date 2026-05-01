@@ -20,7 +20,7 @@ from .hotkey_recorder import humanize, resolve_key_event
 
 
 class KeyProbe(QWidget):
-    """Focus this widget and press a key to see how Murmur identifies it."""
+    """Focus this widget and press a key to see how Murmuro identifies it."""
 
     PLACEHOLDER = "Click here, then press any key…"
     UNRECOGNIZED = (

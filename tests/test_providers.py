@@ -1,7 +1,7 @@
 """Provider registry: shape, lookup, and download-detection logic."""
 from __future__ import annotations
 
-from murmur.providers import (
+from murmuro.providers import (
     CLOUD_PROVIDERS,
     LOCAL_MODELS,
     LocalModel,

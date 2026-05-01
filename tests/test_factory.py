@@ -1,7 +1,7 @@
 """``transcribe.factory`` resolves the local-model download_root.
 
-Issue #12 moved Murmur's model store from the shared HuggingFace cache
-to a Murmur-private path under ``platformdirs.user_data_dir``. The
+Issue #12 moved Murmuro's model store from the shared HuggingFace cache
+to a Murmuro-private path under ``platformdirs.user_data_dir``. The
 factory is the one place that materialises the empty-string default
 into a real directory, so we exercise the resolution + on-demand
 ``mkdir`` behaviour here.
@@ -13,24 +13,24 @@ from pathlib import Path
 import pytest
 from platformdirs import user_data_dir
 
-from murmur import config as config_mod
-from murmur.transcribe.factory import (
+from murmuro import config as config_mod
+from murmuro.transcribe.factory import (
     _resolve_local_download_root,
     default_local_download_root,
 )
 
 
 def test_default_path_matches_platformdirs():
-    """The default lives under ``user_data_dir("Murmur") / "models"``."""
-    expected = Path(user_data_dir("Murmur")) / "models"
+    """The default lives under ``user_data_dir("Murmuro") / "models"``."""
+    expected = Path(user_data_dir("Murmuro")) / "models"
     assert default_local_download_root() == expected
 
 
 def test_resolve_returns_platformdirs_path_when_config_empty(tmp_path, monkeypatch):
     """Empty-string default → fall back to platformdirs."""
-    fake = tmp_path / "data" / "Murmur" / "models"
+    fake = tmp_path / "data" / "Murmuro" / "models"
     monkeypatch.setattr(
-        "murmur.transcribe.factory.default_local_download_root",
+        "murmuro.transcribe.factory.default_local_download_root",
         lambda: fake,
     )
     cfg = config_mod.Config(local=config_mod.LocalBackendConfig(download_root=""))
@@ -46,7 +46,7 @@ def test_resolve_creates_missing_directory(tmp_path, monkeypatch):
     fake = tmp_path / "deep" / "nested" / "models"
     assert not fake.exists()
     monkeypatch.setattr(
-        "murmur.transcribe.factory.default_local_download_root",
+        "murmuro.transcribe.factory.default_local_download_root",
         lambda: fake,
     )
     cfg = config_mod.Config(local=config_mod.LocalBackendConfig(download_root=""))
@@ -55,7 +55,7 @@ def test_resolve_creates_missing_directory(tmp_path, monkeypatch):
 
 
 def test_resolve_returns_configured_path_when_non_empty(tmp_path):
-    """Non-empty config wins — power users can point Murmur elsewhere."""
+    """Non-empty config wins — power users can point Murmuro elsewhere."""
     target = tmp_path / "elsewhere"
     cfg = config_mod.Config(
         local=config_mod.LocalBackendConfig(download_root=str(target)),
@@ -102,7 +102,7 @@ def test_build_local_passes_download_root(tmp_path, monkeypatch):
             download_root=str(target),
         ),
     )
-    from murmur.transcribe import factory as factory_mod
+    from murmuro.transcribe import factory as factory_mod
 
     transcriber = factory_mod.build(cfg)
     assert transcriber.download_root == str(target)
@@ -110,16 +110,16 @@ def test_build_local_passes_download_root(tmp_path, monkeypatch):
 
 
 def test_build_local_empty_download_root_uses_platformdirs(tmp_path, monkeypatch):
-    fake = tmp_path / "data" / "Murmur" / "models"
+    fake = tmp_path / "data" / "Murmuro" / "models"
     monkeypatch.setattr(
-        "murmur.transcribe.factory.default_local_download_root",
+        "murmuro.transcribe.factory.default_local_download_root",
         lambda: fake,
     )
     cfg = config_mod.Config(
         backend="local",
         local=config_mod.LocalBackendConfig(model="base"),
     )
-    from murmur.transcribe import factory as factory_mod
+    from murmuro.transcribe import factory as factory_mod
 
     transcriber = factory_mod.build(cfg)
     assert Path(transcriber.download_root) == fake
@@ -130,7 +130,7 @@ def test_build_still_refuses_empty_model():
         backend="local",
         local=config_mod.LocalBackendConfig(model=""),
     )
-    from murmur.transcribe import factory as factory_mod
+    from murmuro.transcribe import factory as factory_mod
 
     with pytest.raises(RuntimeError, match="No local model selected"):
         factory_mod.build(cfg)
@@ -149,10 +149,10 @@ def test_legacy_openai_backend_still_builds(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        "murmur.secrets.get",
+        "murmuro.secrets.get",
         lambda name, env_var=None: "sk-from-keychain",
     )
-    from murmur.transcribe import factory as factory_mod
+    from murmuro.transcribe import factory as factory_mod
 
     transcriber = factory_mod.build(cfg)
     assert transcriber.base_url == "https://api.openai.com/v1"
@@ -172,10 +172,10 @@ def test_cloud_backend_with_openai_provider_id_matches_legacy(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        "murmur.secrets.get",
+        "murmuro.secrets.get",
         lambda name, env_var=None: "sk-from-keychain",
     )
-    from murmur.transcribe import factory as factory_mod
+    from murmuro.transcribe import factory as factory_mod
 
     transcriber = factory_mod.build(cfg)
     assert transcriber.base_url == "https://api.openai.com/v1"
@@ -190,7 +190,7 @@ def test_cloud_backend_dispatches_to_custom_provider(monkeypatch, tmp_path):
     monkeypatch.setattr(
         config_mod, "config_path", lambda: tmp_path / "config.toml",
     )
-    from murmur import providers as providers_mod
+    from murmuro import providers as providers_mod
 
     cfg = config_mod.load()
     providers_mod.reload_from_config(cfg)
@@ -216,8 +216,8 @@ def test_cloud_backend_dispatches_to_custom_provider(monkeypatch, tmp_path):
         captured["env_var"] = env_var
         return "sk-minimax-key"
 
-    monkeypatch.setattr("murmur.secrets.get", fake_get)
-    from murmur.transcribe import factory as factory_mod
+    monkeypatch.setattr("murmuro.secrets.get", fake_get)
+    from murmuro.transcribe import factory as factory_mod
 
     transcriber = factory_mod.build(cfg)
     assert transcriber.base_url == "https://api.minimax.io/v1"
@@ -232,10 +232,10 @@ def test_cloud_backend_dispatches_to_custom_provider(monkeypatch, tmp_path):
 def test_cloud_backend_unknown_provider_raises(monkeypatch):
     cfg = config_mod.Config(backend="cloud", cloud_provider_id="ghost")
     monkeypatch.setattr(
-        "murmur.secrets.get",
+        "murmuro.secrets.get",
         lambda name, env_var=None: "sk-",
     )
-    from murmur.transcribe import factory as factory_mod
+    from murmuro.transcribe import factory as factory_mod
 
     with pytest.raises(ValueError, match="Unknown cloud provider"):
         factory_mod.build(cfg)

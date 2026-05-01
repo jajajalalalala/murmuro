@@ -91,7 +91,7 @@ class PushToTalkHotkey:
         ``<fn>`` is special — there is no pynput Key for it on macOS, so
         we substitute :data:`FN_KEY`, a sentinel the listener routes
         press/release events through alongside pynput's keys (see
-        :class:`murmur.fn_monitor.FnMonitor`).
+        :class:`murmuro.fn_monitor.FnMonitor`).
         """
         out = set()
         for token in spec.split("+"):
@@ -166,7 +166,7 @@ class PushToTalkHotkey:
         # event tap), we want it in the log instead of staying silent forever.
         threading.Thread(
             target=self._watch_listener,
-            name="murmur-hotkey-watch",
+            name="murmuro-hotkey-watch",
             daemon=True,
         ).start()
 

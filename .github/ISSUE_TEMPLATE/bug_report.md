@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report something broken in Murmur
+about: Report something broken in Murmuro
 title: ''
 labels: bug, needs-triage
 assignees: ''
@@ -22,7 +22,7 @@ assignees: ''
 
 ## Environment
 
-- **Murmur version:** <!-- About page → version, or `murmur --version` -->
+- **Murmuro version:** <!-- About page → version, or `murmuro --version` -->
 - **Install method:** <!-- "downloaded .dmg" / "from source via start.sh" / "self-built via build.sh" -->
 - **macOS version:** <!-- e.g. macOS 14.5 (23F79) -->
 - **Hardware:** <!-- e.g. MacBook Pro M2, 16 GB -->
@@ -31,8 +31,8 @@ assignees: ''
 ## Logs
 
 <!--
-Paste the last ~50 lines of ~/Library/Logs/Murmur/murmur.log here (in a code
-block). Redact any cloud API keys before posting — Murmur masks them in logs
+Paste the last ~50 lines of ~/Library/Logs/Murmuro/murmuro.log here (in a code
+block). Redact any cloud API keys before posting — Murmuro masks them in logs
 by default but double-check.
 -->
 

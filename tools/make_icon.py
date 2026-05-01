@@ -1,4 +1,4 @@
-"""Generate the Murmur app icon as a 1024x1024 PNG.
+"""Generate the Murmuro app icon as a 1024x1024 PNG.
 
 Bold lowercase Greek mu (μ) on a vivid-orange rounded square, with a
 diagonal long-shadow trailing to the bottom-right corner. The glyph is

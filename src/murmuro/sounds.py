@@ -64,7 +64,7 @@ def _play_async(samples: np.ndarray) -> None:
         except Exception as exc:  # noqa: BLE001
             _log.debug("cue tone playback failed: %s", exc)
 
-    threading.Thread(target=_run, name="murmur-cue", daemon=True).start()
+    threading.Thread(target=_run, name="murmuro-cue", daemon=True).start()
 
 
 def play_start() -> None:

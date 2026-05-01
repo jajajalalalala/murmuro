@@ -22,9 +22,9 @@ import pytest
 # from inside the patch context manager.
 pytest.importorskip("openai")
 
-from murmur import config as config_mod  # noqa: E402
-from murmur.transcribe.factory import build  # noqa: E402
-from murmur.transcribe.openai_compatible import (  # noqa: E402
+from murmuro import config as config_mod  # noqa: E402
+from murmuro.transcribe.factory import build  # noqa: E402
+from murmuro.transcribe.openai_compatible import (  # noqa: E402
     OpenAICompatible,
     _pcm_to_wav_bytes,
 )
@@ -98,7 +98,7 @@ def test_factory_builds_openai_compatible_for_openai_backend(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        "murmur.secrets.get",
+        "murmuro.secrets.get",
         lambda name, env_var=None: "sk-from-keychain",
     )
     transcriber = build(cfg)
@@ -113,6 +113,6 @@ def test_factory_raises_when_api_key_missing(monkeypatch):
         backend="openai",
         openai=config_mod.OpenAIBackendConfig(api_key_env="OPENAI_API_KEY"),
     )
-    monkeypatch.setattr("murmur.secrets.get", lambda name, env_var=None: None)
+    monkeypatch.setattr("murmuro.secrets.get", lambda name, env_var=None: None)
     with pytest.raises(RuntimeError, match="no API key found"):
         build(cfg)

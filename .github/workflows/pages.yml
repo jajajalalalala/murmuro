@@ -1,4 +1,4 @@
-# Auto-deploy the Murmur splash page to GitHub Pages.
+# Auto-deploy the Murmuro splash page to GitHub Pages.
 #
 # Trigger: any push to ``main`` that touches ``docs/site/`` (or the
 # workflow itself). The job uploads the static site directory as the
@@ -7,7 +7,7 @@
 # Repo setup (one-time, on github.com):
 #   Settings → Pages → Build and deployment → Source = GitHub Actions
 #
-# Live URL once enabled: https://jajajalalalala.github.io/murmur/
+# Live URL once enabled: https://jajajalalalala.github.io/murmuro/
 
 name: Deploy Pages
 

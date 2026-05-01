@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from murmur import inject
+from murmuro import inject
 
 
 def test_to_clipboard_empty_returns_false():
@@ -30,7 +30,7 @@ def _fake_cg_libs():
 
 
 def test_paste_at_cursor_macos_posts_cmd_v_via_coregraphics():
-    from murmur.permissions import AccessibilityStatus
+    from murmuro.permissions import AccessibilityStatus
 
     cg, cf = _fake_cg_libs()
 
@@ -45,7 +45,7 @@ def test_paste_at_cursor_macos_posts_cmd_v_via_coregraphics():
         patch.object(inject.pyperclip, "copy") as copy,
         patch.object(inject.platform, "system", return_value="Darwin"),
         patch(
-            "murmur.permissions.accessibility_status",
+            "murmuro.permissions.accessibility_status",
             return_value=AccessibilityStatus.GRANTED,
         ),
         patch.object(inject.ctypes, "CDLL", side_effect=fake_cdll),
@@ -82,7 +82,7 @@ def test_paste_at_cursor_macos_posts_cmd_v_via_coregraphics():
 
 
 def test_paste_at_cursor_macos_returns_false_when_event_creation_null():
-    from murmur.permissions import AccessibilityStatus
+    from murmuro.permissions import AccessibilityStatus
 
     cg, cf = _fake_cg_libs()
     cg.CGEventCreateKeyboardEvent.return_value = 0  # NULL
@@ -94,7 +94,7 @@ def test_paste_at_cursor_macos_returns_false_when_event_creation_null():
         patch.object(inject.pyperclip, "copy"),
         patch.object(inject.platform, "system", return_value="Darwin"),
         patch(
-            "murmur.permissions.accessibility_status",
+            "murmuro.permissions.accessibility_status",
             return_value=AccessibilityStatus.GRANTED,
         ),
         patch.object(inject.ctypes, "CDLL", side_effect=fake_cdll),
@@ -104,13 +104,13 @@ def test_paste_at_cursor_macos_returns_false_when_event_creation_null():
 
 def test_paste_at_cursor_skips_keystroke_when_accessibility_denied():
     """No paste attempt without Accessibility — text stays clipboard-only."""
-    from murmur.permissions import AccessibilityStatus
+    from murmuro.permissions import AccessibilityStatus
 
     with (
         patch.object(inject.pyperclip, "copy") as copy,
         patch.object(inject.platform, "system", return_value="Darwin"),
         patch(
-            "murmur.permissions.accessibility_status",
+            "murmuro.permissions.accessibility_status",
             return_value=AccessibilityStatus.DENIED,
         ),
         patch.object(inject.ctypes, "CDLL") as cdll,

@@ -1,4 +1,4 @@
-"""Qt system tray icon for Murmur.
+"""Qt system tray icon for Murmuro.
 
 Shows current state via a colored dot and a context menu with Quit.
 """
@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 from . import __version__
 from . import config as config_mod
 from ._logging import get_logger
-from .app import MurmurApp, State
+from .app import MurmuroApp, State
 from .hud import RecordingHUD
 from .main_window import MainWindow
 from .permissions import (
@@ -26,7 +26,7 @@ from .permissions import (
     open_input_monitoring_settings,
     request_input_monitoring,
 )
-from .ui.dialogs import DialogButton, MurmurDialog
+from .ui.dialogs import DialogButton, MurmuroDialog
 from .ui.theme import DARK, LIGHT, apply_theme
 
 _log = get_logger("tray")
@@ -76,7 +76,7 @@ STATE_ICONS = {
 
 
 class _StateBridge(QObject):
-    """Marshal MurmurApp's worker-thread events onto the Qt main thread."""
+    """Marshal MurmuroApp's worker-thread events onto the Qt main thread."""
 
     state_changed = Signal(object)  # State enum
     result = Signal(str)
@@ -124,17 +124,17 @@ def _ensure_input_monitoring(parent=None) -> bool:
     # the permission, NOT for first-time setup.
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Icon.Warning)
-    box.setWindowTitle("Murmur needs Input Monitoring")
-    box.setText("Murmur can't see your hotkey yet.")
+    box.setWindowTitle("Murmuro needs Input Monitoring")
+    box.setText("Murmuro can't see your hotkey yet.")
     box.setInformativeText(
         "macOS requires Input Monitoring permission for global push-to-talk.\n\n"
         "1. Click 'Open System Settings' below.\n"
-        "2. If you see an old 'Murmur' entry, REMOVE it (–) before toggling — "
+        "2. If you see an old 'Murmuro' entry, REMOVE it (–) before toggling — "
         "every rebuild creates a new identity that the old entry doesn't cover.\n"
-        "3. Toggle the current Murmur ON.\n"
-        "4. Quit and relaunch Murmur — macOS only re-checks Input Monitoring "
+        "3. Toggle the current Murmuro ON.\n"
+        "4. Quit and relaunch Murmuro — macOS only re-checks Input Monitoring "
         "at startup.\n\n"
-        "Logs: ~/Library/Logs/Murmur/murmur.log"
+        "Logs: ~/Library/Logs/Murmuro/murmuro.log"
     )
     open_btn = box.addButton("Open System Settings", QMessageBox.ButtonRole.ActionRole)
     box.addButton("Quit", QMessageBox.ButtonRole.RejectRole)
@@ -152,11 +152,11 @@ def _hint_accessibility_if_denied(parent=None) -> bool:
     permission visible from a menu-bar app, where stderr warnings are
     invisible and pynput's silent hang would otherwise look like a bug in us.
 
-    The hint renders through :class:`MurmurDialog` so it visually
+    The hint renders through :class:`MurmuroDialog` so it visually
     matches the rest of the app — same cream surface, same title-bar
     treatment as the main window. ``QMessageBox`` was the previous
     container but its native chrome made the first-run popup feel
-    like a system alert, not part of Murmur.
+    like a system alert, not part of Murmuro.
     """
     status = accessibility_status()
     _log.info("Accessibility status at startup: %s", status.value)
@@ -166,19 +166,19 @@ def _hint_accessibility_if_denied(parent=None) -> bool:
         return False
 
     open_text = "Open Accessibility settings"
-    dialog = MurmurDialog(
+    dialog = MurmuroDialog(
         title="Auto-paste needs Accessibility",
         body=(
             "Auto-paste at cursor is enabled but Accessibility isn't "
             "granted. Without it, transcribed text still lands on your "
-            "clipboard (press ⌘V to paste manually) — Murmur just can't "
+            "clipboard (press ⌘V to paste manually) — Murmuro just can't "
             "simulate the keystroke for you."
         ),
         steps=(
             f"Click {open_text!r} below.",
-            "Remove any stale Murmur entry, then drag Murmur.app in or "
+            "Remove any stale Murmuro entry, then drag Murmuro.app in or "
             "toggle the existing one ON.",
-            "Quit and relaunch Murmur.",
+            "Quit and relaunch Murmuro.",
         ),
         buttons=(
             DialogButton("Continue with clipboard only", role="reject"),
@@ -230,7 +230,7 @@ def run_tray(cfg: config_mod.Config) -> int:
 
     # Legacy permission gates removed: ad-hoc-signed builds confuse
     # macOS's TCC database (each rebuild has a different code-sign
-    # hash, so toggling ``Murmur ON`` in Privacy & Security registers
+    # hash, so toggling ``Murmuro ON`` in Privacy & Security registers
     # against build N's identity, then build N+1 reads back as
     # ``denied``). The gates were firing the same QMessageBox on
     # every launch even when the user had granted permission moments
@@ -258,7 +258,7 @@ def run_tray(cfg: config_mod.Config) -> int:
     # dot so the menu-bar reading is recording / transcribing at a
     # glance.
     tray.setIcon(_idle_icon())
-    tray.setToolTip(f"Murmur v{__version__} — idle")
+    tray.setToolTip(f"Murmuro v{__version__} — idle")
 
     menu = QMenu()
     state_action = QAction("Idle")
@@ -277,7 +277,7 @@ def run_tray(cfg: config_mod.Config) -> int:
     menu.addAction(silent_mode_action)
     menu.addSeparator()
 
-    open_window_action = QAction("Open Murmur…")
+    open_window_action = QAction("Open Murmuro…")
     menu.addAction(open_window_action)
     # Deep-link entries: each one opens the main window pre-selected
     # to its target page so the user can fix one specific thing in a
@@ -286,7 +286,7 @@ def run_tray(cfg: config_mod.Config) -> int:
     menu.addAction(edit_hotkey_action)
     mic_action = QAction("Microphone input…")
     menu.addAction(mic_action)
-    quit_action = QAction("Quit Murmur")
+    quit_action = QAction("Quit Murmuro")
     menu.addAction(quit_action)
     tray.setContextMenu(menu)
     tray.show()
@@ -301,7 +301,7 @@ def run_tray(cfg: config_mod.Config) -> int:
     # gives focus to System Settings, Qt tries to bring main back, and
     # the loop repeats — visible as the main body flashing in and out
     # until the user grants Accessibility). The tray icon stays visible
-    # so the user can open Murmur from the menu bar after relaunching
+    # so the user can open Murmuro from the menu bar after relaunching
     # with the right permissions.
     if not accessibility_pending:
         main_window.show()
@@ -312,7 +312,7 @@ def run_tray(cfg: config_mod.Config) -> int:
     # recorder itself so the HUD stays decoupled from audio.py — see
     # RecordingHUD.__init__ for the rationale.
     hud = (
-        RecordingHUD(level_provider=lambda: murmur.recorder.current_level)
+        RecordingHUD(level_provider=lambda: murmuro.recorder.current_level)
         if cfg.show_hud
         else None
     )
@@ -325,7 +325,7 @@ def run_tray(cfg: config_mod.Config) -> int:
         # going on. ``color`` is unused for IDLE here; the silhouette
         # carries the brand instead.
         tray.setIcon(_idle_icon() if s is State.IDLE else _dot_icon(color))
-        tray.setToolTip(f"Murmur v{__version__} — {label}")
+        tray.setToolTip(f"Murmuro v{__version__} — {label}")
         state_action.setText(label)
         main_window.update_state(s)
         if hud is None:
@@ -338,7 +338,7 @@ def run_tray(cfg: config_mod.Config) -> int:
     def on_result(text: str) -> None:
         preview = text if len(text) <= 60 else text[:57] + "..."
         tray.showMessage(
-            "Murmur",
+            "Murmuro",
             f"Copied: {preview}",
             QSystemTrayIcon.MessageIcon.Information,
             2500,
@@ -347,7 +347,7 @@ def run_tray(cfg: config_mod.Config) -> int:
 
     def on_error_msg(msg: str) -> None:
         _log.error("error: %s", msg)
-        tray.showMessage("Murmur error", msg, QSystemTrayIcon.MessageIcon.Critical, 4000)
+        tray.showMessage("Murmuro error", msg, QSystemTrayIcon.MessageIcon.Critical, 4000)
 
     def on_paste_request(text: str) -> None:
         # Run from Qt's main thread. CGEventPost from a worker thread is
@@ -363,7 +363,7 @@ def run_tray(cfg: config_mod.Config) -> int:
     bridge.error.connect(on_error_msg)
     bridge.paste_request.connect(on_paste_request)
 
-    murmur = MurmurApp(
+    murmuro = MurmuroApp(
         cfg=cfg,
         on_state_change=lambda s: bridge.state_changed.emit(s),
         on_result=lambda t: bridge.result.emit(t),
@@ -372,10 +372,10 @@ def run_tray(cfg: config_mod.Config) -> int:
     )
 
     # Defer hotkey start until after the event loop is running.
-    QTimer.singleShot(0, murmur.start)
+    QTimer.singleShot(0, murmuro.start)
 
     def quit_app() -> None:
-        murmur.stop()
+        murmuro.stop()
         app.quit()
 
     def open_main_window() -> None:
@@ -388,7 +388,7 @@ def run_tray(cfg: config_mod.Config) -> int:
         main_window.show_page(main_window.PAGE_AUDIO)
 
     def on_config_saved(new_cfg: config_mod.Config) -> None:
-        murmur.reload_config(new_cfg)
+        murmuro.reload_config(new_cfg)
         backend_label.setText(
             f"Backend: {new_cfg.backend}  ·  Hotkey: {new_cfg.hotkey}"
         )

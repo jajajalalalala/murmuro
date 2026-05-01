@@ -1,4 +1,4 @@
-"""MurmurApp.reload_config is selective.
+"""MurmuroApp.reload_config is selective.
 
 Pure toggle saves (auto_paste, show_hud, play_beeps, language) must
 not touch the hotkey listener and must not drop the cached transcriber.
@@ -12,14 +12,14 @@ from __future__ import annotations
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from murmur.app import MurmurApp, _transcriber_inputs_changed
-from murmur.config import Config, LocalBackendConfig, OpenAIBackendConfig
+from murmuro.app import MurmuroApp, _transcriber_inputs_changed
+from murmuro.config import Config, LocalBackendConfig, OpenAIBackendConfig
 
 
-def _build_app(cfg: Config) -> MurmurApp:
-    """Build a MurmurApp with a fake recorder + a mock pynput hotkey already attached."""
-    with patch("murmur.app.Recorder", return_value=MagicMock()):
-        app = MurmurApp(cfg=cfg)
+def _build_app(cfg: Config) -> MurmuroApp:
+    """Build a MurmuroApp with a fake recorder + a mock pynput hotkey already attached."""
+    with patch("murmuro.app.Recorder", return_value=MagicMock()):
+        app = MurmuroApp(cfg=cfg)
     # Skip a real PushToTalkHotkey; tests inspect stop() and start() directly.
     app._hotkey = MagicMock()
     # Pretend a transcriber has been lazily built so we can detect when it gets dropped.
@@ -35,7 +35,7 @@ def test_pure_toggle_save_does_not_touch_hotkey_or_transcriber():
     pre_transcriber = app._transcriber
 
     new_cfg = replace(cfg, auto_paste=not cfg.auto_paste)
-    with patch.object(MurmurApp, "start") as start_mock:
+    with patch.object(MurmuroApp, "start") as start_mock:
         app.reload_config(new_cfg)
 
     pre_hotkey.stop.assert_not_called()
@@ -52,7 +52,7 @@ def test_show_hud_toggle_does_not_touch_hotkey_or_transcriber():
     pre_transcriber = app._transcriber
 
     new_cfg = replace(cfg, show_hud=not cfg.show_hud)
-    with patch.object(MurmurApp, "start") as start_mock:
+    with patch.object(MurmuroApp, "start") as start_mock:
         app.reload_config(new_cfg)
 
     pre_hotkey.stop.assert_not_called()
@@ -70,7 +70,7 @@ def test_hotkey_change_is_a_noop_for_the_running_listener():
     pre_transcriber = app._transcriber
 
     new_cfg = replace(cfg, hotkey="<f13>")
-    with patch.object(MurmurApp, "start") as start_mock:
+    with patch.object(MurmuroApp, "start") as start_mock:
         app.reload_config(new_cfg)
 
     pre_hotkey.stop.assert_not_called()
@@ -89,7 +89,7 @@ def test_local_model_change_drops_transcriber_only():
     pre_hotkey = app._hotkey
 
     new_cfg = replace(cfg, local=LocalBackendConfig(model="small"))
-    with patch.object(MurmurApp, "start") as start_mock:
+    with patch.object(MurmuroApp, "start") as start_mock:
         app.reload_config(new_cfg)
 
     assert app._transcriber is None
@@ -103,7 +103,7 @@ def test_cloud_provider_change_drops_transcriber_only():
     pre_hotkey = app._hotkey
 
     new_cfg = replace(cfg, cloud_provider_id="groq")
-    with patch.object(MurmurApp, "start") as start_mock:
+    with patch.object(MurmuroApp, "start") as start_mock:
         app.reload_config(new_cfg)
 
     assert app._transcriber is None
@@ -117,7 +117,7 @@ def test_backend_switch_local_to_cloud_drops_transcriber_only():
     pre_hotkey = app._hotkey
 
     new_cfg = replace(cfg, backend="cloud")
-    with patch.object(MurmurApp, "start") as start_mock:
+    with patch.object(MurmuroApp, "start") as start_mock:
         app.reload_config(new_cfg)
 
     assert app._transcriber is None
@@ -130,7 +130,7 @@ def test_openai_model_change_drops_transcriber():
     app = _build_app(cfg)
 
     new_cfg = replace(cfg, openai=OpenAIBackendConfig(model="whisper-large-v3"))
-    with patch.object(MurmurApp, "start") as start_mock:
+    with patch.object(MurmuroApp, "start") as start_mock:
         app.reload_config(new_cfg)
 
     assert app._transcriber is None
@@ -153,7 +153,7 @@ def test_combined_hotkey_and_model_change_drops_transcriber_only():
         hotkey="<f13>",
         local=LocalBackendConfig(model="small"),
     )
-    with patch.object(MurmurApp, "start") as start_mock:
+    with patch.object(MurmuroApp, "start") as start_mock:
         app.reload_config(new_cfg)
 
     pre_hotkey.stop.assert_not_called()
@@ -168,8 +168,8 @@ def test_reload_config_always_refreshes_provider_registry():
 
     new_cfg = replace(cfg, auto_paste=not cfg.auto_paste)
     with (
-        patch.object(MurmurApp, "start"),
-        patch("murmur.app.providers_mod.reload_from_config") as reload_registry,
+        patch.object(MurmuroApp, "start"),
+        patch("murmuro.app.providers_mod.reload_from_config") as reload_registry,
     ):
         app.reload_config(new_cfg)
 

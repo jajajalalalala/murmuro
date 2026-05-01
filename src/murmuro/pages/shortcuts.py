@@ -64,7 +64,7 @@ class ShortcutsPage(QWidget):
         probe_layout.setSpacing(10)
         probe_layout.addWidget(hint_label(
             "Not sure if a key is bindable on your keyboard? Click below and "
-            "press it — Murmur shows what it sees."
+            "press it — Murmuro shows what it sees."
         ))
         self.key_probe = KeyProbe()
         probe_layout.addWidget(self.key_probe)

@@ -1,22 +1,22 @@
-"""Wipe Murmur's on-disk state.
+"""Wipe Murmuro's on-disk state.
 
-Driven by ``murmur --uninstall``. Removes:
+Driven by ``murmuro --uninstall``. Removes:
 
 * the user config dir (``config.toml`` lives here)
-* the log dir (``murmur.log`` and rotated copies)
-* Murmur's private model store under
-  ``platformdirs.user_data_dir("Murmur") / "models"`` (introduced in
+* the log dir (``murmuro.log`` and rotated copies)
+* Murmuro's private model store under
+  ``platformdirs.user_data_dir("Murmuro") / "models"`` (introduced in
   v0.6 — see issue #12). Pre-v0.6 downloads in
-  ``~/.cache/huggingface/hub/`` are *not* touched: Murmur no longer
+  ``~/.cache/huggingface/hub/`` are *not* touched: Murmuro no longer
   manages that directory and we don't know which entries belong to
-  Murmur vs. another HuggingFace-using app on the user's machine.
+  Murmuro vs. another HuggingFace-using app on the user's machine.
   The user is shown an "rm -rf" hint so they can clean up manually
   if they want to.
 
 Things this **doesn't** touch — those are user-managed and removing
 them automatically would violate the principle of least surprise:
 
-* the ``Murmur.app`` bundle, if installed (``rm -rf /Applications/Murmur.app``)
+* the ``Murmuro.app`` bundle, if installed (``rm -rf /Applications/Murmuro.app``)
 * the source checkout / virtualenv if running via ``start.sh``
 * macOS Privacy & Security entries (Input Monitoring / Accessibility) —
   the OS only lets the user revoke those manually
@@ -50,7 +50,7 @@ class Target:
 
 
 def _model_store_root() -> Path:
-    """Murmur's private model store path (the new v0.6+ default).
+    """Murmuro's private model store path (the new v0.6+ default).
 
     Kept as a thin wrapper so tests can monkey-patch a single name.
     """
@@ -93,9 +93,9 @@ def run(
     """
     targets = collect_targets()
     present = [t for t in targets if t.exists()]
-    print("Murmur uninstall — the following will be removed:", file=out)
+    print("Murmuro uninstall — the following will be removed:", file=out)
     if not present:
-        print("  (nothing — no Murmur state found on disk)", file=out)
+        print("  (nothing — no Murmuro state found on disk)", file=out)
         return 0
     for t in present:
         print(f"  • {t.label}: {t.path}", file=out)
@@ -105,22 +105,22 @@ def run(
         "Manual cleanup (this command can't do these for you):", file=out,
     )
     print(
-        "  • /Applications/Murmur.app — drag to Trash if installed",
+        "  • /Applications/Murmuro.app — drag to Trash if installed",
         file=out,
     )
     print(
         "  • System Settings → Privacy & Security → Input Monitoring "
-        "/ Accessibility — revoke the entry for Murmur.app or your "
+        "/ Accessibility — revoke the entry for Murmuro.app or your "
         "Python binary",
         file=out,
     )
     # Models downloaded before v0.6 lived in the shared HuggingFace
-    # cache. Murmur stopped managing that path in #12, so we leave it
+    # cache. Murmuro stopped managing that path in #12, so we leave it
     # alone here and surface a copy-pasteable hint instead. Shown for
     # both --dry-run and the real uninstall flow.
     print(
         "  • Pre-v0.6 model downloads may still be in "
-        "~/.cache/huggingface/hub/ — Murmur no longer manages that "
+        "~/.cache/huggingface/hub/ — Murmuro no longer manages that "
         "directory. Remove manually if desired:",
         file=out,
     )

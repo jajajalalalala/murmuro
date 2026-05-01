@@ -1,4 +1,4 @@
-"""Audio page: pick which microphone Murmur records from.
+"""Audio page: pick which microphone Murmuro records from.
 
 Pulls the current device list from ``audio.list_input_devices`` and
 exposes a dropdown that writes back to ``Config.input_device`` (a
@@ -39,7 +39,7 @@ class AudioPage(QWidget):
         layout.setSpacing(16)
         layout.addWidget(self._build_input_card())
         layout.addWidget(hint_label(
-            "Murmur records at 16 kHz mono — most modern mics, including "
+            "Murmuro records at 16 kHz mono — most modern mics, including "
             "AirPods and the built-in MacBook mic, work without any tuning."
         ))
         layout.addStretch(1)
@@ -53,7 +53,7 @@ class AudioPage(QWidget):
         col.setSpacing(10)
         col.addWidget(card_title("Microphone input"))
 
-        caption = QLabel("Choose which input Murmur should listen to.")
+        caption = QLabel("Choose which input Murmuro should listen to.")
         caption.setProperty("dim", True)
         col.addWidget(caption)
 
@@ -64,7 +64,7 @@ class AudioPage(QWidget):
         col.addWidget(self.device_combo)
 
         # Refresh button so the user can re-enumerate after plugging /
-        # unplugging a USB device without quitting Murmur.
+        # unplugging a USB device without quitting Murmuro.
         refresh = QPushButton("Refresh device list")
         refresh.clicked.connect(self.refresh_devices)
         col.addWidget(refresh)

@@ -4,7 +4,7 @@ The user clicks the spec field, presses the desired key (or combo) once,
 and the widget commits the result in pynput-compatible spec form
 (e.g. ``<right_alt>``, ``<ctrl>+<shift>+<space>``, ``<f9>``, ``a``,
 ``<left_ctrl>+5``). The committed spec is what
-:func:`murmur.hotkey.PushToTalkHotkey._parse_keys` already understands.
+:func:`murmuro.hotkey.PushToTalkHotkey._parse_keys` already understands.
 
 There is no Record button. Capture mode is entered when the field
 receives focus (placeholder swaps to ``Press a key…``, the focus ring
@@ -47,7 +47,7 @@ from .ui.theme import ACCENT, clear_button
 
 # VK → pynput special-key name (rendered as "<name>" in the spec).
 # Every name listed here must resolve to a real ``pynput.keyboard.Key``
-# member after :data:`murmur.hotkey.PushToTalkHotkey.KEY_ALIASES` is
+# member after :data:`murmuro.hotkey.PushToTalkHotkey.KEY_ALIASES` is
 # applied — otherwise the listener can't bind it. ``fn`` is deliberately
 # absent until the NSEvent-global-monitor side channel lands.
 _MAC_VK_NAMES: dict[int, str] = {
@@ -272,7 +272,7 @@ class HotkeyRecorder(QWidget):
     # The widget is the focus owner: ``focusInEvent`` enters capture mode,
     # ``focusOutEvent`` cancels it. There is no separate Record button so
     # the lifecycle methods are the natural anchor for the Fn side channel
-    # too — matching :class:`murmur.key_probe.KeyProbe`.
+    # too — matching :class:`murmuro.key_probe.KeyProbe`.
 
     def _enter_capture(self) -> None:
         self._held = set()

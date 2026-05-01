@@ -1,4 +1,4 @@
-# Murmur Roadmap
+# Murmuro Roadmap
 
 The vision: **press a key, speak, get text** — nothing more, nothing less. Each milestone below is a *shippable* slice. Don't move forward until the previous one is real and used daily.
 
@@ -16,13 +16,13 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 - [x] `config.py` — load/save TOML config in user config dir
 - [x] `__main__.py` — interactive CLI: Enter to start/stop, prints text + copies to clipboard
 
-**Done when:** `murmur --cli` records my voice and outputs accurate text in <5 s for a 10 s clip.
+**Done when:** `murmuro --cli` records my voice and outputs accurate text in <5 s for a 10 s clip.
 
 ---
 
 ## v0.2 — "Hotkey + tray" ✅
 
-**Goal:** Stop using the terminal. Murmur lives in the menu bar.
+**Goal:** Stop using the terminal. Murmuro lives in the menu bar.
 
 - [x] `hotkey.py` — global push-to-talk via `pynput` (hold to record, release to stop)
 - [x] `tray.py` — `QSystemTrayIcon` with colored-dot state indicator + Quit menu
@@ -57,7 +57,7 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 - [x] `pages/shortcuts.py` — push-to-talk row using the click-to-record widget
 - [x] `pages/models.py` — provider dropdown swaps between Local model list (Download / Use buttons, faster-whisper cache check) and Cloud panel (API key env var + model)
 - [x] `providers.py` — `LocalModel` and `CloudProvider` dataclasses + registry
-- [x] Tray left-click opens the window; "Settings…" menu item replaced with **Open Murmur…**
+- [x] Tray left-click opens the window; "Settings…" menu item replaced with **Open Murmuro…**
 
 **Done when:** I can configure everything from a window that looks like an app, not a dialog.
 
@@ -65,7 +65,7 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
 
 ## v0.5 — "Daily-driver polish" ✅
 
-**Goal:** Sand off the rough edges of v0.4 so Murmur feels like a real app. Ordered by user-felt priority — top items ship first.
+**Goal:** Sand off the rough edges of v0.4 so Murmuro feels like a real app. Ordered by user-felt priority — top items ship first.
 
 ### P0 — Pain points blocking daily use
 - [x] **Full keyboard coverage for hotkeys** (`feat/hotkeys-full-coverage`)
@@ -75,7 +75,7 @@ The vision: **press a key, speak, get text** — nothing more, nothing less. Eac
   - [x] Tests for each new VK in the recorder map
   - [ ] Same coverage on Windows (Qt nativeVirtualKey → pynput name) — deferred, no Windows daily-driver
 - [x] **UI redesign — colorful, accessible** (`feat/ui-redesign`)
-  - [x] Custom QPalette + single stylesheet shipped from `ui/theme.py`: violet accent (`#7c5cff`), distinct surface colors for left rail vs content, auto light/dark detection (`MURMUR_FORCE_THEME` override for tests)
+  - [x] Custom QPalette + single stylesheet shipped from `ui/theme.py`: violet accent (`#7c5cff`), distinct surface colors for left rail vs content, auto light/dark detection (`MURMURO_FORCE_THEME` override for tests)
   - [x] Style: card-grouped sections, accent state pill, primary action buttons, focus-ring on inputs
   - [x] Verified contrast in macOS Light **and** Dark; section labels and dim text deliberately pushed away from window background
   - [x] About page added under nav so version / log path / config path are one click away
@@ -99,7 +99,7 @@ Small fit-and-finish work that landed after v0.5 was tagged, ahead of the v1.0 o
 - [x] **Recording HUD anchored to bottom-center** — out of the menu bar / notch's way; replaces the previous top-center placement.
 - [x] **Start/stop beeps** (`sounds.py`) — synthesised 880 Hz / 523 Hz cosine-faded tones dispatched on a daemon thread; audio failures never block the push-to-talk path.
 - [x] **Silent mode** — checkable tray menu item plus a Home checkbox; both drive the same `play_beeps` config field, with the tray tick re-syncing on `config_saved`.
-- [x] **`murmur --uninstall`** — `--yes` skips confirmation, `--dry-run` prints the plan without touching disk; only `models--Systran--faster-whisper-*` caches are removed (other HF models are left alone).
+- [x] **`murmuro --uninstall`** — `--yes` skips confirmation, `--dry-run` prints the plan without touching disk; only `models--Systran--faster-whisper-*` caches are removed (other HF models are left alone).
 
 **Done when:** Every key on my keyboard is selectable as a hotkey, the window is readable in dark mode without squinting, transcripts show with timestamps, model downloads show a progress bar, and Groq free-tier works end-to-end.
 
@@ -110,15 +110,15 @@ Small fit-and-finish work that landed after v0.5 was tagged, ahead of the v1.0 o
 **Goal:** A version a friend could install and use.
 
 - [x] First-run onboarding: welcome wizard with permission gates and live status refresh
-- [x] Logging to local file (`~/Library/Logs/Murmur/murmur.log` on macOS)
-- [x] Packaging: `pyinstaller` → `Murmur.app` (mac) — see `build.sh`
+- [x] Logging to local file (`~/Library/Logs/Murmuro/murmuro.log` on macOS)
+- [x] Packaging: `pyinstaller` → `Murmuro.app` (mac) — see `build.sh`
 - [x] GitHub Actions: build + release artifacts on tag (`.github/workflows/release.yml` — push a `v*` tag, get a draft Release with the `.dmg` attached)
 - [x] GitHub Pages splash page (`docs/site/`, deployed via `.github/workflows/pages.yml`) — public download landing page
 - [x] Build hygiene: `tccutil reset` per build to keep stale TCC entries from accumulating across ad-hoc rebuilds
 - [x] Polished README with quickstart, install paths, permissions notes
 
 Deferred to v1.1+:
-- [ ] Packaging: `pyinstaller` → `Murmur.exe` (Windows) — no Windows daily-driver
+- [ ] Packaging: `pyinstaller` → `Murmuro.exe` (Windows) — no Windows daily-driver
 - [ ] Real Developer-ID notarization — $99/yr Apple Developer Program; ad-hoc signing + `tccutil reset` is the working substitute. End-users re-grant permissions per release until this lands.
 
 **Done when:** A non-Python user can download a release, double-click, and dictate within 2 minutes. ✅

@@ -1,11 +1,11 @@
-"""Tests for `murmur.secrets`.
+"""Tests for `murmuro.secrets`.
 
 The real `keyring` library is never imported here. CI runs headless with
 no keychain backend; even if `keyring` were installed, calling
 `keyring.set_password` against a real macOS Keychain would prompt the
 user and pollute their login keychain. Instead we install a tiny
 dict-backed fake module into `sys.modules["keyring"]` for the duration
-of each test — `murmur.secrets` lazy-imports `keyring` inside each
+of each test — `murmuro.secrets` lazy-imports `keyring` inside each
 function, so the fake is what it sees.
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ import types
 
 import pytest
 
-from murmur import secrets
+from murmuro import secrets
 
 
 class _FakeKeyringErrors(types.ModuleType):
@@ -70,7 +70,7 @@ def _clean_env(monkeypatch):
 
 
 def test_get_returns_keychain_value_when_present(fake_keyring):
-    fake_keyring.store[("murmur", "openai")] = "sk-keychain"
+    fake_keyring.store[("murmuro", "openai")] = "sk-keychain"
     assert secrets.get("openai") == "sk-keychain"
 
 
@@ -90,24 +90,24 @@ def test_get_with_custom_env_var_name(fake_keyring, monkeypatch):
 
 
 def test_get_keychain_takes_precedence_over_env(fake_keyring, monkeypatch):
-    fake_keyring.store[("murmur", "openai")] = "sk-keychain"
+    fake_keyring.store[("murmuro", "openai")] = "sk-keychain"
     monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
     assert secrets.get("openai") == "sk-keychain"
 
 
 def test_set_writes_to_keychain(fake_keyring):
     secrets.set("groq", "gsk-abc")
-    assert fake_keyring.store == {("murmur", "groq"): "gsk-abc"}
+    assert fake_keyring.store == {("murmuro", "groq"): "gsk-abc"}
 
 
 def test_delete_removes_from_keychain(fake_keyring):
-    fake_keyring.store[("murmur", "openai")] = "sk-key"
+    fake_keyring.store[("murmuro", "openai")] = "sk-key"
     secrets.delete("openai")
-    assert ("murmur", "openai") not in fake_keyring.store
+    assert ("murmuro", "openai") not in fake_keyring.store
 
 
 def test_get_after_delete_falls_through_to_env(fake_keyring, monkeypatch):
-    fake_keyring.store[("murmur", "openai")] = "sk-key"
+    fake_keyring.store[("murmuro", "openai")] = "sk-key"
     monkeypatch.setenv("OPENAI_API_KEY", "sk-env-fallback")
     secrets.delete("openai")
     assert secrets.get("openai") == "sk-env-fallback"
@@ -115,12 +115,12 @@ def test_get_after_delete_falls_through_to_env(fake_keyring, monkeypatch):
 
 @pytest.fixture
 def secrets_log_records():
-    """List-backed handler attached directly to `murmur.secrets`.
+    """List-backed handler attached directly to `murmuro.secrets`.
 
     pytest's built-in `caplog` listens via the root logger, but
-    `murmur._logging.setup_logging` sets `propagate=False` on the
-    `murmur` logger tree. Once any earlier test in the run triggers
-    that setup, records emitted by `murmur.secrets` never reach root
+    `murmuro._logging.setup_logging` sets `propagate=False` on the
+    `murmuro` logger tree. Once any earlier test in the run triggers
+    that setup, records emitted by `murmuro.secrets` never reach root
     and `caplog.records` stays empty. Attaching here sidesteps that.
     """
     records: list[logging.LogRecord] = []
@@ -130,7 +130,7 @@ def secrets_log_records():
             records.append(record)
 
     handler = _ListHandler(level=logging.WARNING)
-    log = logging.getLogger("murmur.secrets")
+    log = logging.getLogger("murmuro.secrets")
     prev_level = log.level
     log.addHandler(handler)
     log.setLevel(logging.WARNING)
@@ -167,6 +167,6 @@ def test_default_env_var_rule_uppercases_provider_id(fake_keyring, monkeypatch):
 
 def test_empty_string_in_keychain_treated_as_miss(fake_keyring, monkeypatch):
     """A blank keychain entry shouldn't shadow a real env var."""
-    fake_keyring.store[("murmur", "openai")] = ""
+    fake_keyring.store[("murmuro", "openai")] = ""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
     assert secrets.get("openai") == "sk-env"

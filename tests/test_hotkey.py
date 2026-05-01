@@ -7,7 +7,7 @@ pytest.importorskip("pynput")
 
 from pynput import keyboard  # noqa: E402
 
-from murmur.hotkey import FN_KEY, PushToTalkHotkey  # noqa: E402
+from murmuro.hotkey import FN_KEY, PushToTalkHotkey  # noqa: E402
 
 
 def test_right_alt_alias():

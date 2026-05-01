@@ -16,7 +16,7 @@ class LocalWhisper:
         self.device = device
         self.compute_type = compute_type
         # ``None`` lets faster-whisper / huggingface_hub fall back to its
-        # default cache location. The factory resolves Murmur's private
+        # default cache location. The factory resolves Murmuro's private
         # path (under platformdirs.user_data_dir) before we get here, so
         # this code path stays simple.
         self.download_root = download_root

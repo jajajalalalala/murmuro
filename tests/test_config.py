@@ -1,7 +1,7 @@
 import pytest
 
-from murmur import config as config_mod
-from murmur.transcribe.factory import build
+from murmuro import config as config_mod
+from murmuro.transcribe.factory import build
 
 
 def test_config_roundtrip(tmp_path, monkeypatch):

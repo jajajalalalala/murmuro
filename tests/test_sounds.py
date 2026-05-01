@@ -13,7 +13,7 @@ import time
 
 import numpy as np
 
-from murmur import sounds
+from murmuro import sounds
 
 
 def test_tones_have_distinct_pitches():

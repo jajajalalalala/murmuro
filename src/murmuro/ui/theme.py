@@ -1,4 +1,4 @@
-"""Murmur visual theme.
+"""Murmuro visual theme.
 
 Single accent color (warm terracotta orange), explicit light/dark
 palettes, and a small set of helper factories so pages can produce
@@ -117,11 +117,11 @@ def _detect_palette(app: QApplication) -> Palette:
     rather than DARK — the maintainer prefers the brighter look on
     first launch and can flip to dark via the rail toggle.
 
-    Tests that set ``MURMUR_FORCE_THEME=light|dark`` skip detection
+    Tests that set ``MURMURO_FORCE_THEME=light|dark`` skip detection
     entirely.
     """
     import os
-    forced = os.environ.get("MURMUR_FORCE_THEME", "").lower()
+    forced = os.environ.get("MURMURO_FORCE_THEME", "").lower()
     if forced == "light":
         return LIGHT
     if forced == "dark":
@@ -147,7 +147,7 @@ def _detect_palette(app: QApplication) -> Palette:
 
 
 def apply_theme(app: QApplication, palette: Palette | None = None) -> Palette:
-    """Apply the Murmur theme to ``app`` and return the active palette.
+    """Apply the Murmuro theme to ``app`` and return the active palette.
 
     Idempotent — calling twice just reapplies. The function tweaks both
     the QPalette (so native widgets like QMessageBox pick up reasonable
@@ -188,7 +188,7 @@ def _stylesheet(p: Palette) -> str:
        parent to children — without these rules, only the brand
        header had ``rail_bg`` and the rest of the rail fell through
        to the lighter palette ``Window`` color, producing a visible
-       seam between μ Murmur and Home/Shortcuts/Models. */
+       seam between μ Murmuro and Home/Shortcuts/Models. */
     QWidget#rail, QWidget#brandHeader, QWidget#navHost, QWidget#railBottom {{
         background: {p.rail_bg};
     }}

@@ -2,7 +2,7 @@
 
 Issue: #20.
 
-Walks a fresh-install user through the four things Murmur needs to be
+Walks a fresh-install user through the four things Murmuro needs to be
 useful:
 
   1. Permissions  — Microphone + Input Monitoring + Accessibility.
@@ -91,7 +91,7 @@ class OnboardingWizard(QDialog):
         self._save_config = save_config or config_mod.save
         self._skipped = False
 
-        self.setWindowTitle("Welcome to Murmur")
+        self.setWindowTitle("Welcome to Murmuro")
         self.setModal(True)
         self.setMinimumSize(640, 460)
 
@@ -238,7 +238,7 @@ class _WelcomeStep(_Step):
         layout.setSpacing(14)
 
         intro = QLabel(
-            "Murmur turns your voice into text at the cursor — hold a "
+            "Murmuro turns your voice into text at the cursor — hold a "
             "hotkey, speak, release. Before we get going, macOS needs "
             "two permissions to make this work."
         )
@@ -253,14 +253,14 @@ class _WelcomeStep(_Step):
 
         self._input_row, self._input_status = _permission_row(
             label="Input Monitoring",
-            description="Lets Murmur see your global hotkey from any app.",
+            description="Lets Murmuro see your global hotkey from any app.",
             on_grant=self._grant_input_monitoring,
         )
         col.addWidget(self._input_row)
 
         self._access_row, self._access_status = _permission_row(
             label="Accessibility",
-            description="Lets Murmur paste transcribed text at the cursor "
+            description="Lets Murmuro paste transcribed text at the cursor "
                         "(without it, transcripts still land on the clipboard).",
             on_grant=self._grant_accessibility,
         )
@@ -285,7 +285,7 @@ class _WelcomeStep(_Step):
         self._poll.start()
 
     def sub_header(self) -> str:
-        return "Grant permissions so Murmur can hear your hotkey and paste at the cursor."
+        return "Grant permissions so Murmuro can hear your hotkey and paste at the cursor."
 
     def _refresh_status(self) -> None:
         im = input_monitoring_status()
@@ -376,7 +376,7 @@ class _ModelStep(_Step):
         layout.setSpacing(14)
 
         intro = QLabel(
-            "Murmur runs a small Whisper model on your machine. The "
+            "Murmuro runs a small Whisper model on your machine. The "
             "default — Base — is a good balance: ~145 MB to download, "
             "fast on any modern Mac, accurate enough for dictation."
         )
@@ -421,7 +421,7 @@ class _ModelStep(_Step):
         layout.addStretch(1)
 
     def sub_header(self) -> str:
-        return "Pick which Whisper model Murmur should use."
+        return "Pick which Whisper model Murmuro should use."
 
     def apply_to_config(self, cfg: config_mod.Config) -> config_mod.Config:
         choice = self._combo.currentData()
@@ -502,7 +502,7 @@ class _TryItStep(_Step):
         title.setStyleSheet("font-size: 16px; font-weight: 700;")
         col.addWidget(title)
         col.addWidget(QLabel(
-            "Click Finish to close this wizard. Murmur will sit in the "
+            "Click Finish to close this wizard. Murmuro will sit in the "
             "menu bar — hold your hotkey from any app, speak, and your "
             "words will appear at the cursor.\n\n"
             "If something doesn't work, the Home page will tell you "

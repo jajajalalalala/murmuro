@@ -20,7 +20,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtGui import QPixmap  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from murmur.hud import RecordingHUD, _format_elapsed  # noqa: E402
+from murmuro.hud import RecordingHUD, _format_elapsed  # noqa: E402
 
 
 @pytest.fixture(scope="module")

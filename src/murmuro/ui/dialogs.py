@@ -1,11 +1,11 @@
-"""Custom modal dialogs that match the Murmur main-window styling.
+"""Custom modal dialogs that match the Murmuro main-window styling.
 
 QMessageBox is the path-of-least-resistance for a "tell the user
 something + ask them to pick" interaction, but its title bar, icon,
 and chrome are macOS-native — clicking through one feels like
 ducking out of the app into a generic system dialog.
 
-This module ships a single ``MurmurDialog`` primitive that reuses
+This module ships a single ``MurmuroDialog`` primitive that reuses
 the cream-card look + native title-bar styling we apply to the main
 window. The accessibility-permission hint is the first caller; the
 hotkey-restart modal and the delete-model confirm are obvious
@@ -34,7 +34,7 @@ _log = get_logger("ui.dialogs")
 
 @dataclass(frozen=True)
 class DialogButton:
-    """One button in a :class:`MurmurDialog` footer.
+    """One button in a :class:`MurmuroDialog` footer.
 
     ``primary`` styles the button with the orange accent — at most
     one button per dialog should be primary. ``role`` mirrors
@@ -47,15 +47,15 @@ class DialogButton:
     primary: bool = False
 
 
-class MurmurDialog(QDialog):
-    """Modal dialog styled to match the Murmur main window.
+class MurmuroDialog(QDialog):
+    """Modal dialog styled to match the Murmuro main window.
 
     Layout: a single cream surface (rail-color background) with a
     bold title, a body paragraph, an optional list of step lines,
     and a footer button row (secondary on the left, primary on the
     right). The macOS title bar uses the same transparent + hidden-
     title treatment as the main window so the popup reads as part
-    of Murmur rather than a system alert.
+    of Murmuro rather than a system alert.
 
     Construction is declarative — callers pass title, body, optional
     steps, and a list of :class:`DialogButton`. The clicked button's
@@ -200,4 +200,4 @@ def _active_rail_rgb() -> tuple[float, float, float]:
     return r, g, b
 
 
-__all__ = ["DialogButton", "MurmurDialog"]
+__all__ = ["DialogButton", "MurmuroDialog"]

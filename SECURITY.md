@@ -1,19 +1,19 @@
 # Security
 
-Murmur is a personal dictation tool that runs locally and stores data only on your machine. There is no server, no telemetry, no account, and no shared infrastructure.
+Murmuro is a personal dictation tool that runs locally and stores data only on your machine. There is no server, no telemetry, no account, and no shared infrastructure.
 
-## What Murmur stores
+## What Murmuro stores
 
 | Item | Where |
 |---|---|
-| Config (hotkey, language, selected model, etc.) | `~/Library/Application Support/Murmur/config.toml` (macOS) |
-| Logs | `~/Library/Logs/Murmur/murmur.log` (macOS) |
+| Config (hotkey, language, selected model, etc.) | `~/Library/Application Support/Murmuro/config.toml` (macOS) |
+| Logs | `~/Library/Logs/Murmuro/murmuro.log` (macOS) |
 | Cloud-provider API keys | Your OS keychain via the [`keyring`](https://pypi.org/project/keyring/) library, with a per-provider env-var fallback. Never written to the config file. |
-| Whisper model weights | The HuggingFace cache (`~/.cache/huggingface/hub/`) for legacy installs, or `~/Library/Application Support/Murmur/models/` for v0.6+ installs. |
+| Whisper model weights | The HuggingFace cache (`~/.cache/huggingface/hub/`) for legacy installs, or `~/Library/Application Support/Murmuro/models/` for v0.6+ installs. |
 | Audio recordings | Held in memory only — never written to disk. |
 | Transcripts | The most recent 5 are kept in memory for the Home page; not persisted across restarts. |
 
-`murmur --uninstall` removes the config, logs, and Murmur-managed Whisper caches. Other HuggingFace models are left alone.
+`murmuro --uninstall` removes the config, logs, and Murmuro-managed Whisper caches. Other HuggingFace models are left alone.
 
 ## Reporting a vulnerability
 
@@ -24,13 +24,13 @@ Instead, email the maintainer directly: **lalalajajaja188@gmail.com**
 Include:
 - A description of the issue and the impact
 - Steps to reproduce, if you have them
-- The Murmur version (`murmur --version` or About page)
+- The Murmuro version (`murmuro --version` or About page)
 
-I'll respond within a week. For non-security bugs, please use the [issue tracker](https://github.com/jajajalalalala/murmur/issues) instead.
+I'll respond within a week. For non-security bugs, please use the [issue tracker](https://github.com/jajajalalalala/murmuro/issues) instead.
 
 ## Distribution security
 
-Murmur v1.0 ships ad-hoc-signed (not Apple-notarized). The `xattr -dr com.apple.quarantine` step in the install instructions is required to launch the downloaded `.app` — see the [README](README.md#why-the-quarantine-bypass) for the full explanation.
+Murmuro v1.0 ships ad-hoc-signed (not Apple-notarized). The `xattr -dr com.apple.quarantine` step in the install instructions is required to launch the downloaded `.app` — see the [README](README.md#why-the-quarantine-bypass) for the full explanation.
 
 If you'd rather not run that command, you can [build from source](README.md#from-source) — local builds are not quarantined.
 

@@ -1,4 +1,4 @@
-"""MurmurApp wires cue tones into the press/release path.
+"""MurmuroApp wires cue tones into the press/release path.
 
 Verifies the on/off behavior driven by Config.play_beeps without touching
 the real audio output (which CI runners don't have anyway).
@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from murmur.app import MurmurApp
-from murmur.config import Config
+from murmuro.app import MurmuroApp
+from murmuro.config import Config
 
 
 def _silent_recorder() -> MagicMock:
@@ -20,11 +20,11 @@ def _silent_recorder() -> MagicMock:
 def test_press_plays_start_tone_when_enabled():
     cfg = Config(play_beeps=True)
     with (
-        patch("murmur.app.Recorder", return_value=_silent_recorder()),
-        patch("murmur.app.play_start") as start,
-        patch("murmur.app.play_stop") as stop,
+        patch("murmuro.app.Recorder", return_value=_silent_recorder()),
+        patch("murmuro.app.play_start") as start,
+        patch("murmuro.app.play_stop") as stop,
     ):
-        app = MurmurApp(cfg=cfg)
+        app = MurmuroApp(cfg=cfg)
         app._on_press()
     assert start.called, "expected start beep on press"
     assert not stop.called
@@ -33,11 +33,11 @@ def test_press_plays_start_tone_when_enabled():
 def test_release_plays_stop_tone_when_enabled():
     cfg = Config(play_beeps=True)
     with (
-        patch("murmur.app.Recorder", return_value=_silent_recorder()),
-        patch("murmur.app.play_start"),
-        patch("murmur.app.play_stop") as stop,
+        patch("murmuro.app.Recorder", return_value=_silent_recorder()),
+        patch("murmuro.app.play_start"),
+        patch("murmuro.app.play_stop") as stop,
     ):
-        app = MurmurApp(cfg=cfg)
+        app = MurmuroApp(cfg=cfg)
         app._on_press()
         app._on_release()
     assert stop.called, "expected stop beep on release"
@@ -47,11 +47,11 @@ def test_beeps_skipped_when_disabled():
     """play_beeps=False is the user opt-out — neither tone should fire."""
     cfg = Config(play_beeps=False)
     with (
-        patch("murmur.app.Recorder", return_value=_silent_recorder()),
-        patch("murmur.app.play_start") as start,
-        patch("murmur.app.play_stop") as stop,
+        patch("murmuro.app.Recorder", return_value=_silent_recorder()),
+        patch("murmuro.app.play_start") as start,
+        patch("murmuro.app.play_stop") as stop,
     ):
-        app = MurmurApp(cfg=cfg)
+        app = MurmuroApp(cfg=cfg)
         app._on_press()
         app._on_release()
     assert not start.called

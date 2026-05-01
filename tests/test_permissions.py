@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import platform
 
-from murmur.permissions import (
+from murmuro.permissions import (
     IS_MAC,
     InputMonitoringStatus,
     input_monitoring_status,

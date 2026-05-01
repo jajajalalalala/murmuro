@@ -105,7 +105,7 @@ class _LocalModelRow(QFrame):
     ) -> None:
         super().__init__(parent)
         self.model = model
-        # Murmur-private download root resolved by the factory. Stored on
+        # Murmuro-private download root resolved by the factory. Stored on
         # each row so cache_path()/is_downloaded() always look in the new
         # location instead of the legacy HF cache.
         self.download_root = download_root
@@ -296,7 +296,7 @@ class _LocalPanel(QWidget):
         self._rows: dict[str, _LocalModelRow] = {}
         self._active_model_id = cfg.local.model
         self._workers: dict[str, tuple[QThread, _DownloadWorker]] = {}
-        # Resolve the Murmur-private download root once; the panel
+        # Resolve the Murmuro-private download root once; the panel
         # passes it down to every row + worker so they all agree on
         # where models live on disk. Creates the directory if missing.
         self._download_root = _resolve_local_download_root(cfg)
@@ -349,7 +349,7 @@ class _LocalPanel(QWidget):
     def set_config(self, cfg: config_mod.Config) -> None:
         self._cfg = cfg
         self._active_model_id = cfg.local.model
-        # Re-resolve in case the user pointed Murmur at a different
+        # Re-resolve in case the user pointed Murmuro at a different
         # download_root via the TOML; rows pick up the new path on the
         # next refresh / action.
         self._download_root = _resolve_local_download_root(cfg)
@@ -583,7 +583,7 @@ class _CloudPanel(QWidget):
             in_keychain = False
             try:
                 import keyring
-                in_keychain = bool(keyring.get_password("murmur", self._provider.id))
+                in_keychain = bool(keyring.get_password("murmuro", self._provider.id))
             except Exception:  # noqa: BLE001
                 pass
             source = "keychain" if in_keychain else f"{self._provider.api_key_env} env var"

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Murmur setup + run script.
+# Murmuro setup + run script.
 # - Installs uv if missing
 # - Pins Python via .python-version
 # - Creates an isolated venv
 # - Installs the project + GUI extras
-# - Launches Murmur
+# - Launches Murmuro
 #
 # Usage:
 #   ./start.sh                  # set up (if needed) and launch GUI
@@ -98,8 +98,8 @@ fi
 # 6. Launch.
 if [[ "$LAUNCH_MODE" == "cli" ]]; then
     echo "[start.sh] launching CLI mode..."
-    exec .venv/bin/murmur --cli
+    exec .venv/bin/murmuro --cli
 else
     echo "[start.sh] launching GUI..."
-    exec .venv/bin/murmur
+    exec .venv/bin/murmuro
 fi

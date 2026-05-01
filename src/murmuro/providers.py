@@ -2,7 +2,7 @@
 
 A provider is either:
   - ``local`` — a faster-whisper model that runs on the user's machine
-    (no key, no network; downloads into Murmur's private model store —
+    (no key, no network; downloads into Murmuro's private model store —
     see ``transcribe.factory.default_local_download_root``).
   - ``openai_compatible`` — a hosted whisper-style endpoint reachable over
     HTTP with the OpenAI Python client (set ``base_url`` to point at the
@@ -59,7 +59,7 @@ class LocalModel:
         per-model directory the same way HuggingFace's hub does:
         ``<root>/models--Systran--faster-whisper-<id>``.
 
-        ``download_root`` is the resolved Murmur-private path (see
+        ``download_root`` is the resolved Murmuro-private path (see
         ``transcribe.factory._resolve_local_download_root``). When
         ``None`` we fall back to the legacy HF cache resolution so
         early-boot callers — e.g. the Models page constructing rows

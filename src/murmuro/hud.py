@@ -1,6 +1,6 @@
 """Floating recording HUD — small pill near the bottom of the screen while you talk.
 
-Shown only during the RECORDING state so you can see at a glance that Murmur
+Shown only during the RECORDING state so you can see at a glance that Murmuro
 is listening. Frameless, always-on-top, no Dock entry, and — critically —
 non-activating: the underlying NSPanel never becomes key, so showing it
 doesn't steal focus from whatever text field the user is typing into.
