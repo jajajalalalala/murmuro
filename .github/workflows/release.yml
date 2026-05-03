@@ -120,11 +120,20 @@ jobs:
           if-no-files-found: error
 
       - name: Create GitHub Release and attach dmgs
+        # ``draft: false`` so the release is immediately published when the
+        # workflow finishes — this is what makes
+        # ``releases/latest/download/Murmuro.dmg`` resolve right after a tag
+        # push, no manual "Publish release" click required. The workflow
+        # only runs on ``push: tags: v*``, so an accidental push can't
+        # publish anything; bad tags can be deleted (and the release with
+        # them). ``prerelease`` is auto-set when the tag has a hyphen
+        # (e.g. ``v1.0.0-rc1``) so RCs don't claim ``releases/latest``.
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
           name: Murmuro ${{ steps.tag.outputs.name }}
-          draft: true
+          draft: false
+          prerelease: ${{ contains(steps.tag.outputs.name, '-') }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
