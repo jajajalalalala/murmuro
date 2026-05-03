@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "murmuro"
-version = "1.0.0"
+version = "1.0.1"
 description = "Press a key, speak, get text. A minimal local-first dictation tool."
 readme = "README.md"
 requires-python = ">=3.10"
